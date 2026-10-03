@@ -333,15 +333,21 @@ max_frequency = "5s"
 [auth.external.apple]
 enabled = false
 client_id = ""
+
+[auth.external.google]
+enabled = true
+client_id = "182660476141-d64psdo2k3v0nhq3n783li2n4fvb7m6h.apps.googleusercontent.com"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"
+skip_nonce_check = false
 # DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
-secret = "env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)"
+
 # Overrides the default auth callback URL derived from auth.external_url.
 redirect_uri = ""
 # Overrides the default auth provider URL. Used to support self-hosted gitlab, single-tenant Azure,
 # or any other third-party OIDC providers.
 url = ""
 # If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
-skip_nonce_check = false
+
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
 email_optional = false
 

@@ -1,8 +1,149 @@
 -- Forum schema - full UP migration
--- Supabase version: preserves the original forum behavior while using auth.users and a public forum_user_stats companion table.
+-- Supabase version: auth.users handles authentication; public.profiles preserves forum identity; public.forum_user_stats tracks active-user counts.
 
 BEGIN;
 
+-- =========================================================
+-- USER PROFILE + MESSAGE COUNT
+-- auth.users remains the authentication source of truth.
+-- profiles preserves public forum identity (name/avatar) after auth deletion.
+-- forum_user_stats exists only while the auth user exists.
+-- =========================================================
+
+CREATE TABLE public.profiles (
+  id UUID PRIMARY KEY,
+  -- Mirrors auth.users.id while the auth user exists.
+  -- Becomes NULL on auth-user deletion so the public profile can remain
+  -- available for historical forum posts.
+  auth_user_id UUID UNIQUE,
+  name TEXT NOT NULL,
+  image_url TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+  CONSTRAINT profiles_auth_user_id_fk
+    FOREIGN KEY (auth_user_id) REFERENCES auth.users (id) ON DELETE SET NULL,
+  CONSTRAINT profiles_auth_user_matches_id_check
+    CHECK (auth_user_id IS NULL OR auth_user_id = id),
+  CONSTRAINT profiles_name_length_check
+    CHECK (char_length(btrim(name)) BETWEEN 1 AND 100)
+);
+
+CREATE TABLE public.forum_user_stats (
+  user_id UUID PRIMARY KEY,
+  replies_count BIGINT NOT NULL DEFAULT 0
+    CONSTRAINT forum_user_stats_replies_count_check CHECK (replies_count >= 0),
+  CONSTRAINT forum_user_stats_user_id_fk
+    FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE
+);
+
+CREATE OR REPLACE FUNCTION public.forum_create_user_stats()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    INSERT INTO public.forum_user_stats (user_id)
+    VALUES (NEW.id)
+    ON CONFLICT (user_id) DO NOTHING;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER forum_auth_user_created
+AFTER INSERT
+ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.forum_create_user_stats();
+
+CREATE OR REPLACE FUNCTION public.create_user_profile()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_name TEXT;
+    v_image_url TEXT;
+BEGIN
+    v_name := left(
+        COALESCE(
+            NULLIF(btrim(NEW.raw_user_meta_data ->> 'name'), ''),
+            NULLIF(btrim(NEW.raw_user_meta_data ->> 'full_name'), ''),
+            NULLIF(btrim(split_part(COALESCE(NEW.email, ''), '@', 1)), ''),
+            'User'
+        ),
+        100
+    );
+
+    v_image_url := COALESCE(
+        NULLIF(btrim(NEW.raw_user_meta_data ->> 'avatar_url'), ''),
+        NULLIF(btrim(NEW.raw_user_meta_data ->> 'picture'), '')
+    );
+
+    INSERT INTO public.profiles (
+        id,
+        auth_user_id,
+        name,
+        image_url
+    )
+    VALUES (
+        NEW.id,
+        NEW.id,
+        v_name,
+        v_image_url
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET
+        auth_user_id = EXCLUDED.auth_user_id,
+        name = EXCLUDED.name,
+        image_url = EXCLUDED.image_url,
+        updated_at = clock_timestamp();
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT
+ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.create_user_profile();
+
+-- Backfill users that existed before this migration.
+INSERT INTO public.forum_user_stats (user_id)
+SELECT id
+FROM auth.users
+ON CONFLICT (user_id) DO NOTHING;
+
+INSERT INTO public.profiles (
+    id,
+    auth_user_id,
+    name,
+    image_url
+)
+SELECT
+    u.id,
+    u.id,
+    left(
+        COALESCE(
+            NULLIF(btrim(u.raw_user_meta_data ->> 'name'), ''),
+            NULLIF(btrim(u.raw_user_meta_data ->> 'full_name'), ''),
+            NULLIF(btrim(split_part(COALESCE(u.email, ''), '@', 1)), ''),
+            'User'
+        ),
+        100
+    ),
+    COALESCE(
+        NULLIF(btrim(u.raw_user_meta_data ->> 'avatar_url'), ''),
+        NULLIF(btrim(u.raw_user_meta_data ->> 'picture'), '')
+    )
+FROM auth.users AS u
+ON CONFLICT (id) DO NOTHING;
+
+-- =========================================================
+-- FORUMS
 -- =========================================================
 
 CREATE TABLE forums (
@@ -18,7 +159,7 @@ CREATE TABLE forums (
   last_post_date TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
-  CONSTRAINT forums_last_post_author_fk FOREIGN KEY (last_post_author_id) REFERENCES auth.users (id) ON DELETE SET NULL,
+  CONSTRAINT forums_last_post_author_fk FOREIGN KEY (last_post_author_id) REFERENCES public.profiles (id) ON DELETE SET NULL,
   CONSTRAINT forums_name_length_check CHECK (char_length(btrim(name)) BETWEEN 1 AND 100)
 );
 
@@ -29,8 +170,8 @@ CREATE TABLE forums (
 CREATE TABLE threads (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   forum_id BIGINT NOT NULL,
-  -- Nullable only so historical content survives auth-user deletion.
-  -- New threads are still required to have an author by trigger.
+  -- Normally references a preserved public profile.
+  -- New threads must reference an active auth user; NULL is only possible if the profile itself is deleted.
   user_id UUID,
   title TEXT NOT NULL,
   content TEXT NOT NULL,
@@ -44,8 +185,8 @@ CREATE TABLE threads (
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT threads_forum_id_fk FOREIGN KEY (forum_id) REFERENCES forums (id) ON DELETE CASCADE,
-  CONSTRAINT threads_user_id_fk FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE SET NULL,
-  CONSTRAINT threads_last_post_author_id_fk FOREIGN KEY (last_post_author_id) REFERENCES auth.users (id) ON DELETE SET NULL,
+  CONSTRAINT threads_user_id_fk FOREIGN KEY (user_id) REFERENCES public.profiles (id) ON DELETE SET NULL,
+  CONSTRAINT threads_last_post_author_id_fk FOREIGN KEY (last_post_author_id) REFERENCES public.profiles (id) ON DELETE SET NULL,
   CONSTRAINT threads_title_length_check CHECK (char_length(btrim(title)) BETWEEN 1 AND 255),
   CONSTRAINT threads_content_length_check CHECK (char_length(content) BETWEEN 1 AND 100000)
 );
@@ -60,57 +201,17 @@ ADD CONSTRAINT forums_last_post_thread_fk FOREIGN KEY (last_post_thread_id) REFE
 CREATE TABLE replies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   thread_id BIGINT NOT NULL,
-  -- Nullable only so historical content survives auth-user deletion.
-  -- New replies are still required to have an author by trigger.
+  -- Normally references a preserved public profile.
+  -- New replies must reference an active auth user; NULL is only possible if the profile itself is deleted.
   user_id UUID,
   post TEXT NOT NULL,
   notify BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT replies_thread_id_fk FOREIGN KEY (thread_id) REFERENCES threads (id) ON DELETE CASCADE,
-  CONSTRAINT replies_user_id_fk FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE SET NULL,
+  CONSTRAINT replies_user_id_fk FOREIGN KEY (user_id) REFERENCES public.profiles (id) ON DELETE SET NULL,
   CONSTRAINT replies_post_length_check CHECK (char_length(post) BETWEEN 1 AND 100000)
 );
-
--- =========================================================
--- USER MESSAGE COUNT
--- Supabase manages auth.users, so application-specific columns are kept
--- in a public companion table instead of altering the auth schema.
--- =========================================================
-
-CREATE TABLE public.forum_user_stats (
-  user_id UUID PRIMARY KEY,
-  replies_count BIGINT NOT NULL DEFAULT 0
-    CONSTRAINT forum_user_stats_replies_count_check CHECK (replies_count >= 0),
-  CONSTRAINT forum_user_stats_user_id_fk
-    FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE
-);
-
-CREATE OR REPLACE FUNCTION forum_create_user_stats()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-BEGIN
-    INSERT INTO public.forum_user_stats (user_id)
-    VALUES (NEW.id)
-    ON CONFLICT (user_id) DO NOTHING;
-    RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER forum_auth_user_created
-AFTER INSERT
-ON auth.users
-FOR EACH ROW
-EXECUTE FUNCTION public.forum_create_user_stats();
-
--- Create counter rows for users that already existed before this migration.
-INSERT INTO public.forum_user_stats (user_id)
-SELECT id
-FROM auth.users
-ON CONFLICT (user_id) DO NOTHING;
 
 -- =========================================================
 -- INDEXES
@@ -187,6 +288,12 @@ BEGIN
 END;
 $$;
 
+CREATE TRIGGER profiles_set_updated_at
+BEFORE UPDATE
+ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION forum_set_updated_at();
+
 CREATE TRIGGER forums_set_updated_at
 BEFORE UPDATE
 ON forums
@@ -213,9 +320,20 @@ BEGIN
     IF NEW.user_id IS NULL THEN
         RAISE EXCEPTION 'new thread user_id cannot be NULL';
     END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.profiles AS p
+        WHERE p.id = NEW.user_id
+          AND p.auth_user_id = NEW.user_id
+    ) THEN
+        RAISE EXCEPTION 'new thread user_id must reference an active auth user';
+    END IF;
+
     IF NEW.created_at IS NULL THEN
         NEW.created_at := clock_timestamp();
     END IF;
+
     -- replies only: a new thread has zero replies
     NEW.messages_count := 0;
     NEW.last_post_title := NEW.title;
@@ -293,7 +411,7 @@ EXECUTE FUNCTION forum_prevent_reply_relation_changes();
 
 -- =========================================================
 -- REPLY INSERT VALIDATION
--- user_id is nullable only for preserving historical rows after user deletion.
+-- New replies must belong to an active auth user. Historical profile IDs remain after auth-user deletion.
 -- =========================================================
 
 CREATE OR REPLACE FUNCTION forum_validate_reply_insert()
@@ -304,6 +422,16 @@ BEGIN
     IF NEW.user_id IS NULL THEN
         RAISE EXCEPTION 'new reply user_id cannot be NULL';
     END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.profiles AS p
+        WHERE p.id = NEW.user_id
+          AND p.auth_user_id = NEW.user_id
+    ) THEN
+        RAISE EXCEPTION 'new reply user_id must reference an active auth user';
+    END IF;
+
     RETURN NEW;
 END;
 $$;
@@ -318,7 +446,7 @@ EXECUTE FUNCTION forum_validate_reply_insert();
 -- PROTECT TRIGGER-MAINTAINED DENORMALIZED FIELDS
 -- Direct application writes are rejected. Nested writes issued by this
 -- migration's own triggers remain allowed. SET NULL of last_post_author_id
--- is allowed so ON DELETE SET NULL can preserve content after user deletion.
+-- is allowed so ON DELETE SET NULL can preserve content if a profile row is explicitly deleted.
 -- =========================================================
 
 CREATE OR REPLACE FUNCTION forum_guard_forum_denormalized_update()
@@ -771,6 +899,12 @@ EXECUTE FUNCTION forum_after_thread_delete();
 -- COMMENTS
 -- =========================================================
 
+COMMENT ON TABLE public.profiles IS 'Public forum identity preserved independently of auth-user lifetime';
+COMMENT ON COLUMN public.profiles.id IS 'Stable public profile ID; initially equal to auth.users.id';
+COMMENT ON COLUMN public.profiles.auth_user_id IS 'Active auth user ID; becomes NULL when the auth account is deleted';
+COMMENT ON COLUMN public.profiles.name IS 'Public display name';
+COMMENT ON COLUMN public.profiles.image_url IS 'Public avatar/image URL';
+COMMENT ON TABLE public.forum_user_stats IS 'Per-user forum message counters for active auth users';
 COMMENT ON TABLE forums IS 'Forum categories containing threads';
 COMMENT ON COLUMN forums.id IS 'Unique forum identifier';
 COMMENT ON COLUMN forums.name IS 'Forum name (1-100 characters)';
@@ -778,24 +912,24 @@ COMMENT ON COLUMN forums.description IS 'Forum description';
 COMMENT ON COLUMN forums.messages_count IS 'Total messages in the forum: threads + replies';
 COMMENT ON COLUMN forums.last_post_thread_id IS 'Thread ID of the most recent forum activity';
 COMMENT ON COLUMN forums.last_post_title IS 'Title of the most recently active thread';
-COMMENT ON COLUMN forums.last_post_author_id IS 'User ID of the most recent poster';
+COMMENT ON COLUMN forums.last_post_author_id IS 'Profile ID of the most recent poster';
 COMMENT ON COLUMN forums.last_post_date IS 'Timestamp of the most recent forum activity';
 COMMENT ON TABLE threads IS 'Discussion threads within forums';
 COMMENT ON COLUMN threads.id IS 'Unique thread identifier';
 COMMENT ON COLUMN threads.forum_id IS 'Parent forum ID';
-COMMENT ON COLUMN threads.user_id IS 'Original thread author ID; NULL only after that auth user is deleted';
+COMMENT ON COLUMN threads.user_id IS 'Original author profile ID; normally preserved after auth-user deletion and NULL only if the profile itself is deleted';
 COMMENT ON COLUMN threads.title IS 'Thread title (1-255 characters)';
 COMMENT ON COLUMN threads.content IS 'Opening post content/body';
 COMMENT ON COLUMN threads.messages_count IS 'Total number of replies in the thread; opening post is not counted';
 COMMENT ON COLUMN threads.last_post_title IS 'Copy of the current thread title';
-COMMENT ON COLUMN threads.last_post_author_id IS 'User ID of the most recent poster in the thread';
+COMMENT ON COLUMN threads.last_post_author_id IS 'Profile ID of the most recent poster in the thread';
 COMMENT ON COLUMN threads.last_post_date IS 'Timestamp of the most recent thread activity';
 COMMENT ON COLUMN threads.notify IS 'Whether the thread author requested notifications';
 COMMENT ON COLUMN threads.sticky IS 'Whether the thread is pinned';
 COMMENT ON TABLE replies IS 'Replies to forum threads';
 COMMENT ON COLUMN replies.id IS 'Unique reply identifier';
 COMMENT ON COLUMN replies.thread_id IS 'Parent thread ID';
-COMMENT ON COLUMN replies.user_id IS 'Reply author ID; NULL only after that auth user is deleted';
+COMMENT ON COLUMN replies.user_id IS 'Reply author profile ID; normally preserved after auth-user deletion and NULL only if the profile itself is deleted';
 COMMENT ON COLUMN replies.post IS 'Reply content/body';
 COMMENT ON COLUMN replies.notify IS 'Whether the reply author requested notifications';
 COMMENT ON COLUMN public.forum_user_stats.replies_count IS 'Total forum messages currently authored by this user: opened threads + replies';

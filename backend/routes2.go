@@ -28,94 +28,113 @@ func getLatestPosts(w http.ResponseWriter, r *http.Request) {
 	offset := (page - 1) * perPage
 
 	const query = `
-	SELECT
-		posts.id,
-		posts.post_type,
-		posts.thread_id,
-		posts.forum_id,
-		f.name AS forum_name,
+		SELECT
+			posts.id,
+			posts.post_type,
+			posts.thread_id,
+			posts.forum_id,
+			f.name AS forum_name,
 
-		posts.open_user_id,
-		COALESCE(open_user.name, 'Deleted user') AS open_user_name,
+			COALESCE(
+				posts.open_user_id,
+				'00000000-0000-0000-0000-000000000000'::uuid
+			)::text AS open_user_id,
 
-		open_user.image AS open_user_image,
+			COALESCE(
+				open_user.name,
+				'Deleted user'
+			) AS open_user_name,
 
-		posts.last_reply_user_id, COALESCE(last_reply_user.name, 'Deleted user') AS last_reply_user_name,
+			COALESCE(
+				open_user.image_url,
+				''
+			) AS open_user_image,
 
-		posts.thread_title,
-		posts.thread_content,
-		posts.last_reply_content,
-		posts.created_at,
-		posts.messages_count
+			posts.last_reply_user_id::text,
 
-	FROM (
-		SELECT *
+			CASE
+				WHEN posts.last_reply_user_id IS NULL THEN ''
+				ELSE COALESCE(last_reply_user.name, 'Deleted user')
+			END AS last_reply_user_name,
+
+			posts.thread_title,
+			posts.thread_content,
+			posts.last_reply_content,
+			posts.created_at,
+			posts.messages_count
+
 		FROM (
-			SELECT DISTINCT ON (r.thread_id)
-				r.id::text AS id,
-				'reply'::text AS post_type,
-				r.thread_id,
+			SELECT *
+			FROM (
+				SELECT DISTINCT ON (r.thread_id)
+					r.id::text AS id,
+					'reply'::text AS post_type,
+					r.thread_id,
+					t.forum_id,
+
+					t.user_id AS open_user_id,
+					r.user_id AS last_reply_user_id,
+
+					t.title AS thread_title,
+					t.content AS thread_content,
+					r.post AS last_reply_content,
+					r.created_at,
+					t.messages_count
+
+				FROM public.replies AS r
+
+				JOIN public.threads AS t
+					ON t.id = r.thread_id
+
+				ORDER BY
+					r.thread_id,
+					r.created_at DESC,
+					r.id DESC
+			) AS latest_replies
+
+			UNION ALL
+
+			SELECT
+				t.id::text AS id,
+				'thread'::text AS post_type,
+				t.id AS thread_id,
 				t.forum_id,
 
 				t.user_id AS open_user_id,
-				r.user_id AS last_reply_user_id,
+				NULL::uuid AS last_reply_user_id,
 
 				t.title AS thread_title,
 				t.content AS thread_content,
-				r.post AS last_reply_content,
-				r.created_at,
+				t.content AS last_reply_content,
+				t.created_at,
 				t.messages_count
 
-			FROM replies r
-			JOIN threads t
-				ON t.id = r.thread_id
+			FROM public.threads AS t
 
-			ORDER BY
-				r.thread_id,
-				r.created_at DESC,
-				r.id DESC
-		) AS latest_replies
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM public.replies AS r
+				WHERE r.thread_id = t.id
+			)
+		) AS posts
 
-		UNION ALL
+		JOIN public.forums AS f
+			ON f.id = posts.forum_id
 
-		SELECT
-			t.id::text AS id,
-			'thread'::text AS post_type,
-			t.id AS thread_id,
-			t.forum_id,
+		LEFT JOIN public.profiles AS open_user
+			ON open_user.id = posts.open_user_id
 
-			t.user_id AS open_user_id,
-			NULL::uuid AS last_reply_user_id,
+		LEFT JOIN public.profiles AS last_reply_user
+			ON last_reply_user.id = posts.last_reply_user_id
 
-			t.title AS thread_title,
-			t.content AS thread_content,
-			t.content AS content,
-			t.created_at,
-			t.messages_count
+		ORDER BY
+			posts.created_at DESC,
+			posts.id DESC
 
-		FROM threads t
+		LIMIT $1
+		OFFSET $2
+	`
 
-		WHERE NOT EXISTS (
-			SELECT 1
-			FROM replies r
-			WHERE r.thread_id = t.id
-		)
-	) AS posts
-
-	JOIN forums f
-		ON f.id = posts.forum_id
-
-	LEFT JOIN neon_auth."user" open_user
-		ON open_user.id = posts.open_user_id
-
-	LEFT JOIN neon_auth."user" last_reply_user
-		ON last_reply_user.id = posts.last_reply_user_id
-
-	ORDER BY posts.created_at DESC
-
-	LIMIT $1
-	OFFSET $2
-`
 	rows, err := db.Query(
 		r.Context(),
 		query,
@@ -143,6 +162,7 @@ func getLatestPosts(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		var post LatestPost
+
 		if err := rows.Scan(
 			&post.ID,
 			&post.PostType,
@@ -205,7 +225,6 @@ func getLatestPosts(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 }
-
 func getForumNameByID(
 	ctx context.Context,
 	forumID int64,

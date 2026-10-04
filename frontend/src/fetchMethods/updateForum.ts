@@ -1,4 +1,4 @@
-import { getAuthToken } from "../lib/getAuthToken";
+import getToken from "../lib/getToken";
 
 import type { CreateForumData, CreatedForum } from "./createForum";
 
@@ -10,7 +10,7 @@ export async function updateForum(
   let token: string;
 
   try {
-    token = await getAuthToken();
+    token = await getToken();
   } catch (error) {
     console.error("Failed to get auth token:", error);
     return;

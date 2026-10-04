@@ -2,9 +2,12 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { getMe } from "../lib/getMe.ts";
 import { GetAvatar } from "../utils/GetAvatar.tsx";
-import { authClient } from "../lib/auth";
+import { useNavigate } from "react-router-dom";
+// import { authClient } from "../lib/auth";
 import { useUserStore } from "../stores/userStore";
 import { useSessionStore } from "../stores/sessionStore";
+import { supabase } from "../lib/supabase.ts";
+
 import Login from "../Login.tsx";
 export default function Header() {
   const [tzurMenu, setTzurMenu] = useState<boolean>(false);
@@ -17,26 +20,17 @@ export default function Header() {
   const baseUrl = import.meta.env.BASE_URL;
   const { user, setUser } = useUserStore((state) => state);
   const { setSession } = useSessionStore((state) => state);
-
+  const navigate = useNavigate();
   const handleSignOut = async () => {
     console.log("1. sign out clicked");
 
     try {
-      // console.log("2. calling Better Auth");
-
-      const result = await authClient.signOut();
-
-      // console.log("3. signOut result:", result);
-
-      if (result.error) {
-        console.error("Sign out failed:", result.error);
-        return;
-      }
+      await supabase.auth.signOut();
 
       setUser(null);
       setSession(null);
       setIsLogin(false);
-      // console.log("4. signed out");
+      console.log("4. signed out");
     } catch (error) {
       console.error("5. signOut exception:", error);
     }
@@ -51,25 +45,7 @@ export default function Header() {
       console.log(error);
     }
   }
-  // useEffect(() => {
-  //   async function loadUser() {
-  //     try {
-  //       const result = await getMe();
-  //       console.log("getMe:", result);
 
-  //       if (result) {
-  //         setUser(result);
-  //       } else {
-  //         setUser(null);
-  //       }
-  //     } catch (error) {
-  //       console.error("loadUser:", error);
-  //       setUser(null);
-  //     }
-  //   }
-
-  //   loadUser();
-  // }, [setUser]);
   return (
     <div className="flex flex-col">
       <header className="bg-black w-full h-20">
@@ -342,8 +318,9 @@ export default function Header() {
             <div className="flex gap-4 items-center">
               <button
                 onClick={() => {
-                  setIsLogin(!isLogin);
-                  setSignUp(true);
+                  // setIsLogin(!isLogin);
+                  // setSignUp(true);
+                  navigate("/auth?mode=signup");
                 }}
                 className="w-fit py-2 font-medium px-4 cursor-pointer rounded-lg text-amber-200"
               >
@@ -351,8 +328,9 @@ export default function Header() {
               </button>
               <button
                 onClick={() => {
-                  setIsLogin(!isLogin);
-                  setSignUp(false);
+                  // setIsLogin(!isLogin);
+                  // setSignUp(false);
+                  navigate("/auth?mode=login");
                 }}
                 className="w-fit py-2 font-medium px-4  cursor-pointer rounded-lg bg-sky-400"
               >

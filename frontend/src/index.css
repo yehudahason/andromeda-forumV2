@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+:root {
+  --bn-colors-editor-background: #222;
+  --bn-colors-editor-text: #fff;
+  --bn-border-radius-large: 6px;
+}
+body {
+  background-color: black;
+}

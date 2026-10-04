@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -19,26 +21,47 @@ func deleteForum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := getUserID(r)
+	user, err := getUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		if errors.Is(err, ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		logger.Error(
+			"deleteForum authentication error",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
+
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	if userID.Role != "admin" {
-		http.Error(w, "Unauthorized non admin", http.StatusUnauthorized)
+	if user.Role != "admin" {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
 	result, err := db.Exec(
 		r.Context(),
 		`
-		DELETE FROM forums
+		DELETE FROM public.forums
 		WHERE id = $1
 		`,
 		forumID,
 	)
+
 	if err != nil {
+		logger.Error(
+			"deleteForum database error",
+			"error", err,
+			"forum_id", forumID,
+			"user_id", user.ID,
+			"status", http.StatusInternalServerError,
+		)
+
 		http.Error(w, "Failed to delete forum", http.StatusInternalServerError)
 		return
 	}
@@ -50,6 +73,7 @@ func deleteForum(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
 func deleteThread(w http.ResponseWriter, r *http.Request) {
 	threadIDString := r.PathValue("threadID")
 
@@ -59,30 +83,53 @@ func deleteThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := getUserID(r)
+	user, err := getUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		if errors.Is(err, ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		logger.Error(
+			"deleteThread authentication error",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
+
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	if userID.Role != "admin" {
-		http.Error(w, "Unauthorized non admin", http.StatusUnauthorized)
+
+	if user.Role != "admin" {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
+
 	result, err := db.Exec(
 		r.Context(),
 		`
-		DELETE FROM threads
+		DELETE FROM public.threads
 		WHERE id = $1
 		`,
 		threadID,
 	)
+
 	if err != nil {
+		logger.Error(
+			"deleteThread database error",
+			"error", err,
+			"thread_id", threadID,
+			"user_id", user.ID,
+			"status", http.StatusInternalServerError,
+		)
+
 		http.Error(w, "Failed to delete thread", http.StatusInternalServerError)
 		return
 	}
 
 	if result.RowsAffected() == 0 {
-		http.Error(w, "Thread not found or not owned by user", http.StatusNotFound)
+		http.Error(w, "Thread not found", http.StatusNotFound)
 		return
 	}
 
@@ -90,37 +137,61 @@ func deleteThread(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteReply(w http.ResponseWriter, r *http.Request) {
-	replyID := r.PathValue("replyID")
+	replyIDString := r.PathValue("replyID")
 
-	if replyID == "" {
+	replyID, err := uuid.Parse(replyIDString)
+	if err != nil {
 		http.Error(w, "Invalid reply ID", http.StatusBadRequest)
 		return
 	}
 
-	userID, err := getUserID(r)
+	user, err := getUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		if errors.Is(err, ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		logger.Error(
+			"deleteReply authentication error",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
+
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	if userID.Role != "admin" {
-		http.Error(w, "Unauthorized non admin", http.StatusUnauthorized)
+
+	if user.Role != "admin" {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
+
 	result, err := db.Exec(
 		r.Context(),
 		`
-		DELETE FROM replies
+		DELETE FROM public.replies
 		WHERE id = $1
 		`,
 		replyID,
 	)
+
 	if err != nil {
+		logger.Error(
+			"deleteReply database error",
+			"error", err,
+			"reply_id", replyID,
+			"user_id", user.ID,
+			"status", http.StatusInternalServerError,
+		)
+
 		http.Error(w, "Failed to delete reply", http.StatusInternalServerError)
 		return
 	}
 
 	if result.RowsAffected() == 0 {
-		http.Error(w, "Reply not found or not owned by user", http.StatusNotFound)
+		http.Error(w, "Reply not found", http.StatusNotFound)
 		return
 	}
 
@@ -128,16 +199,29 @@ func deleteReply(w http.ResponseWriter, r *http.Request) {
 }
 
 func createForum(w http.ResponseWriter, r *http.Request) {
-
-	userID, err := getUserID(r)
+	user, err := getUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		if errors.Is(err, ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		logger.Error(
+			"createForum authentication error",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
+
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	if userID.Role != "admin" {
-		http.Error(w, "Unauthorized non admin", http.StatusUnauthorized)
+
+	if user.Role != "admin" {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
+
 	var input CreateForumRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -151,9 +235,15 @@ func createForum(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input.Name = strings.TrimSpace(input.Name)
+	input.Description = strings.TrimSpace(input.Description)
 
 	if input.Name == "" {
 		http.Error(w, "Forum name is required", http.StatusBadRequest)
+		return
+	}
+
+	if utf8.RuneCountInString(input.Name) > 100 {
+		http.Error(w, "Forum name is too long", http.StatusBadRequest)
 		return
 	}
 
@@ -162,7 +252,7 @@ func createForum(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
-		INSERT INTO forums (
+		INSERT INTO public.forums (
 			sort_order,
 			name,
 			description
@@ -188,6 +278,7 @@ func createForum(w http.ResponseWriter, r *http.Request) {
 		logger.Error(
 			"failed to create forum",
 			"error", err,
+			"user_id", user.ID,
 			"status", http.StatusInternalServerError,
 		)
 
@@ -208,14 +299,26 @@ func createForum(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateForum(w http.ResponseWriter, r *http.Request) {
-	userID, err := getUserID(r)
+	user, err := getUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		if errors.Is(err, ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		logger.Error(
+			"updateForum authentication error",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
+
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	if userID.Role != "admin" {
-		http.Error(w, "Unauthorized non admin", http.StatusUnauthorized)
+	if user.Role != "admin" {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -240,9 +343,15 @@ func updateForum(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input.Name = strings.TrimSpace(input.Name)
+	input.Description = strings.TrimSpace(input.Description)
 
 	if input.Name == "" {
 		http.Error(w, "Forum name is required", http.StatusBadRequest)
+		return
+	}
+
+	if utf8.RuneCountInString(input.Name) > 100 {
+		http.Error(w, "Forum name is too long", http.StatusBadRequest)
 		return
 	}
 
@@ -251,7 +360,7 @@ func updateForum(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
-		UPDATE forums
+		UPDATE public.forums
 		SET
 			name = $1,
 			description = $2,
@@ -283,6 +392,8 @@ func updateForum(w http.ResponseWriter, r *http.Request) {
 		logger.Error(
 			"failed to update forum",
 			"error", err,
+			"forum_id", forumID,
+			"user_id", user.ID,
 			"status", http.StatusInternalServerError,
 		)
 

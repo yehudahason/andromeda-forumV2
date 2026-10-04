@@ -1,4 +1,4 @@
-import { getAuthToken } from "../lib/getAuthToken";
+import getToken from "../lib/getToken";
 
 export type CreateForumData = {
   id?: number;
@@ -20,9 +20,8 @@ export async function createForum(
   const url = "https://api.pitron-halomot.org";
 
   let token: string;
-
   try {
-    token = await getAuthToken();
+    token = await getToken();
   } catch (error) {
     console.error("Failed to get auth token:", error);
     return;

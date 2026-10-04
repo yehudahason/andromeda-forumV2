@@ -1,13 +1,17 @@
 import { type SubmitEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { useSearchParams } from "react-router-dom";
 
 type Mode = "login" | "signup";
 
 export default function AuthPage() {
+  const [searchParams] = useSearchParams();
+
+  const initMode = searchParams.get("mode") as Mode;
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(initMode);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -17,6 +21,7 @@ export default function AuthPage() {
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const baseUrl = import.meta.env.BASE_URL;
 
   useEffect(() => {
     const {
@@ -134,9 +139,16 @@ export default function AuthPage() {
   return (
     <div
       dir="rtl"
-      className="flex min-h-screen items-center justify-center bg-slate-950 px-4"
+      className="flex fixed top-0 left-0 h-full w-full items-center justify-center bg-slate-950 px-4"
     >
-      <div className="w-full max-w-md rounded-2xl bg-slate-900 p-8 shadow-xl">
+      <div className="w-full max-w-md rounded-2xl bg-slate-900 p-8 shadow-xl relative">
+        <a href="/">
+          <img
+            className="absolute top-4 left-4"
+            src={`${baseUrl}close2.png`}
+            alt=""
+          />
+        </a>
         <h1 className="mb-2 text-center text-3xl font-bold text-white">
           {mode === "login" ? "התחברות" : "הרשמה"}
         </h1>

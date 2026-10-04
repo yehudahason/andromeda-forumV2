@@ -1,10 +1,10 @@
-import { getAuthToken } from "../lib/getAuthToken";
+import getToken from "../lib/getToken";
 import type { ReplyPost } from "../types";
 export async function getReplyByID(replyID: string): Promise<ReplyPost> {
   const url = "https://api.pitron-halomot.org";
   let token;
   try {
-    token = await getAuthToken();
+    token = await getToken();
   } catch (e) {
     console.log(e);
     token = null;

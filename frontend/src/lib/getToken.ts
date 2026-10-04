@@ -7,7 +7,7 @@ export default async function getToken() {
 
   if (!session) {
     console.log("Not Authenticated");
-    return;
+    return "";
   }
   const token = session?.access_token;
 

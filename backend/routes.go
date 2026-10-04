@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,19 +29,23 @@ func getForums(w http.ResponseWriter, r *http.Request) {
 			f.sort_order,
 			CASE
 				WHEN f.last_post_date IS NULL THEN NULL
-				ELSE COALESCE(u.name, 'Deleted user')
+				ELSE COALESCE(p.name, 'Deleted user')
 			END AS last_post_author,
 			f.last_post_date
-		FROM forums AS f
-		LEFT JOIN neon_auth."user" AS u
-			ON u.id = f.last_post_author_id
+		FROM public.forums AS f
+		LEFT JOIN public.profiles AS p
+			ON p.id = f.last_post_author_id
 		ORDER BY f.sort_order ASC, f.id ASC;
 		`,
 	)
 	if err != nil {
-		fmt.Print(err)
-		http.Error(w, "Failed to get forums", http.StatusInternalServerError)
+		logger.Error(
+			"getForums query error",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
 
+		http.Error(w, "Failed to get forums", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -62,7 +65,12 @@ func getForums(w http.ResponseWriter, r *http.Request) {
 			&forum.LastPostDate,
 		)
 		if err != nil {
-			fmt.Print(err)
+			logger.Error(
+				"getForums scan error",
+				"error", err,
+				"status", http.StatusInternalServerError,
+			)
+
 			http.Error(w, "Failed to scan forum", http.StatusInternalServerError)
 			return
 		}
@@ -71,7 +79,12 @@ func getForums(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rows.Err(); err != nil {
-		fmt.Print(err)
+		logger.Error(
+			"getForums rows error",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
+
 		http.Error(w, "Failed to read forums", http.StatusInternalServerError)
 		return
 	}
@@ -87,7 +100,6 @@ func getForums(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-
 func getThreads(w http.ResponseWriter, r *http.Request) {
 	const perPage = 14
 
@@ -104,10 +116,10 @@ func getThreads(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
-	SELECT name
-	FROM forums
-	WHERE id = $1
-	`,
+		SELECT name
+		FROM public.forums
+		WHERE id = $1
+		`,
 		forumID,
 	).Scan(&forumName)
 
@@ -139,7 +151,7 @@ func getThreads(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		`
 		SELECT COUNT(*)
-		FROM threads
+		FROM public.threads
 		WHERE forum_id = $1
 		`,
 		forumID,
@@ -165,12 +177,12 @@ func getThreads(w http.ResponseWriter, r *http.Request) {
 			COALESCE(lp.name, 'Deleted user') AS last_post_author,
 			t.last_post_date,
 			t.created_at
-		FROM threads AS t
+		FROM public.threads AS t
 
-		LEFT JOIN neon_auth."user" AS u
+		LEFT JOIN public.profiles AS u
 			ON u.id = t.user_id
 
-		LEFT JOIN neon_auth."user" AS lp
+		LEFT JOIN public.profiles AS lp
 			ON lp.id = t.last_post_author_id
 
 		WHERE t.forum_id = $1
@@ -239,7 +251,6 @@ func getThreads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-
 func getReplies(w http.ResponseWriter, r *http.Request) {
 	const perPage = 14
 
@@ -268,7 +279,7 @@ func getReplies(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		`
 		SELECT title
-		FROM threads
+		FROM public.threads
 		WHERE id = $1
 		`,
 		threadID,
@@ -290,7 +301,7 @@ func getReplies(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		`
 		SELECT COUNT(*)
-		FROM replies
+		FROM public.replies
 		WHERE thread_id = $1
 		`,
 		threadID,
@@ -312,24 +323,41 @@ func getReplies(w http.ResponseWriter, r *http.Request) {
 			r.id,
 			r.thread_id,
 			t.title,
-			COALESCE(u.id, '00000000-0000-0000-0000-000000000000'::uuid),
-			COALESCE(u.name, 'Deleted user'),
-			COALESCE(u.email, ''),
-			COALESCE(u.role, ''),
-			COALESCE(u.image, ''),
-			COALESCE(u.replies_count, 0),
-			u."createdAt",
+
+			COALESCE(
+				p.id,
+				'00000000-0000-0000-0000-000000000000'::uuid
+			) AS author_id,
+
+			COALESCE(p.name, 'Deleted user') AS author_name,
+
+			COALESCE(a.email, '') AS author_email,
+
+			COALESCE(p.role, '') AS author_role,
+
+			COALESCE(p.image_url, '') AS author_image,
+
+			COALESCE(s.replies_count, 0) AS replies_count,
+
+			p.created_at AS author_created_at,
 
 			r.post,
 			r.created_at,
 			r.updated_at
-		FROM replies AS r
 
-		JOIN threads AS t
+		FROM public.replies AS r
+
+		JOIN public.threads AS t
 			ON t.id = r.thread_id
 
-		LEFT JOIN neon_auth."user" AS u
-			ON u.id = r.user_id
+		LEFT JOIN public.profiles AS p
+			ON p.id = r.user_id
+
+		LEFT JOIN auth.users AS a
+			ON a.id = p.auth_user_id
+
+		LEFT JOIN public.forum_user_stats AS s
+			ON s.user_id = p.auth_user_id
 
 		WHERE r.thread_id = $1
 
@@ -346,18 +374,14 @@ func getReplies(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		logger.Error(
-			"failed to scan reply",
+			"getReplies query error",
 			"error", err,
 			"status", http.StatusInternalServerError,
 		)
 
-		http.Error(w, "Failed to scan reply", http.StatusInternalServerError)
+		http.Error(w, "Failed to get replies", http.StatusInternalServerError)
 		return
 	}
-	// if err != nil {
-	// 	http.Error(w, "Failed to get replies", http.StatusInternalServerError)
-	// 	return
-	// }
 	defer rows.Close()
 
 	for rows.Next() {
@@ -379,6 +403,12 @@ func getReplies(w http.ResponseWriter, r *http.Request) {
 			&reply.UpdatedAt,
 		)
 		if err != nil {
+			logger.Error(
+				"getReplies scan error",
+				"error", err,
+				"status", http.StatusInternalServerError,
+			)
+
 			http.Error(w, "Failed to scan reply", http.StatusInternalServerError)
 			return
 		}
@@ -409,9 +439,7 @@ func getReplies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-
 func createThread(w http.ResponseWriter, r *http.Request) {
-	// Get forum ID from:
 	// POST /forums/{forumID}/threads
 	forumIDString := r.PathValue("forumID")
 
@@ -421,9 +449,7 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get logged-in user before checking whether the forum exists.
-	// This keeps protected POST routes consistent and avoids exposing
-	// resource existence to unauthenticated callers.
+	// Authenticate user.
 	user, err := getUserID(r)
 	if err != nil {
 		if errors.Is(err, ErrUnauthorized) {
@@ -443,10 +469,12 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 			"error", err,
 			"status", http.StatusInternalServerError,
 		)
+
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
+	// Make sure forum exists.
 	var forumExists bool
 
 	err = db.QueryRow(
@@ -454,7 +482,7 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 		`
 		SELECT EXISTS (
 			SELECT 1
-			FROM forums
+			FROM public.forums
 			WHERE id = $1
 		)
 		`,
@@ -462,6 +490,12 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 	).Scan(&forumExists)
 
 	if err != nil {
+		logger.Error(
+			"createThread failed to check forum",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
+
 		http.Error(w, "Failed to check forum", http.StatusInternalServerError)
 		return
 	}
@@ -470,6 +504,7 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Forum not found", http.StatusNotFound)
 		return
 	}
+
 	var input CreateThreadRequest
 
 	err = json.NewDecoder(r.Body).Decode(&input)
@@ -506,7 +541,7 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
-		INSERT INTO threads (
+		INSERT INTO public.threads (
 			forum_id,
 			user_id,
 			title,
@@ -517,6 +552,7 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 		RETURNING
 			id,
 			forum_id,
+			user_id,
 			title,
 			content,
 			notify,
@@ -530,6 +566,7 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 	).Scan(
 		&thread.ID,
 		&thread.ForumID,
+		&thread.UserID,
 		&thread.Title,
 		&thread.Content,
 		&thread.Notify,
@@ -537,11 +574,17 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
+		logger.Error(
+			"createThread insert error",
+			"error", err,
+			"user_id", user.ID,
+			"forum_id", forumID,
+			"status", http.StatusInternalServerError,
+		)
+
 		http.Error(w, "Failed to create thread", http.StatusInternalServerError)
 		return
 	}
-
-	thread.UserID = user.ID.String()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -552,10 +595,8 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 			"error", err,
 			"status", http.StatusCreated,
 		)
-		return
 	}
 }
-
 func updateThread(w http.ResponseWriter, r *http.Request) {
 	threadIDString := r.PathValue("threadID")
 
@@ -578,6 +619,7 @@ func updateThread(w http.ResponseWriter, r *http.Request) {
 			"error", err,
 			"status", http.StatusInternalServerError,
 		)
+
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -626,7 +668,7 @@ func updateThread(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
-		UPDATE threads
+		UPDATE public.threads
 		SET
 			title = $1,
 			content = $2,
@@ -660,8 +702,11 @@ func updateThread(w http.ResponseWriter, r *http.Request) {
 		logger.Error(
 			"updateThread database error",
 			"error", err,
+			"thread_id", threadID,
+			"user_id", user.ID,
 			"status", http.StatusInternalServerError,
 		)
+
 		http.Error(w, "Failed to update thread", http.StatusInternalServerError)
 		return
 	}
@@ -678,7 +723,13 @@ func updateThread(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateReply(w http.ResponseWriter, r *http.Request) {
-	replyID := r.PathValue("replyID")
+	replyIDString := r.PathValue("replyID")
+
+	replyID, err := uuid.Parse(replyIDString)
+	if err != nil {
+		http.Error(w, "Invalid reply ID", http.StatusBadRequest)
+		return
+	}
 
 	user, err := getUserID(r)
 	if err != nil {
@@ -693,6 +744,7 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 			"error", err,
 			"status", http.StatusInternalServerError,
 		)
+
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -728,7 +780,7 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
-		UPDATE replies
+		UPDATE public.replies
 		SET
 			post = $1,
 			notify = $2
@@ -758,8 +810,11 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 		logger.Error(
 			"updateReply database error",
 			"error", err,
+			"reply_id", replyID,
+			"user_id", user.ID,
 			"status", http.StatusInternalServerError,
 		)
+
 		http.Error(w, "Failed to update reply", http.StatusInternalServerError)
 		return
 	}
@@ -776,17 +831,18 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 }
 
 func getReplyPositionHandler(w http.ResponseWriter, r *http.Request) {
-	threadIDStr := r.PathValue("threadID")
-	replyID := r.PathValue("replyID")
+	threadIDString := r.PathValue("threadID")
+	replyIDString := r.PathValue("replyID")
 
-	threadID, err := strconv.ParseInt(threadIDStr, 10, 64)
-	if err != nil {
+	threadID, err := strconv.ParseInt(threadIDString, 10, 64)
+	if err != nil || threadID <= 0 {
 		http.Error(w, "Invalid thread ID", http.StatusBadRequest)
 		return
 	}
 
-	if replyID == "" {
-		http.Error(w, "Reply ID is missing", http.StatusBadRequest)
+	replyID, err := uuid.Parse(replyIDString)
+	if err != nil {
+		http.Error(w, "Invalid reply ID", http.StatusBadRequest)
 		return
 	}
 
@@ -802,7 +858,8 @@ func getReplyPositionHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logger.Error("failed to get reply position",
+		logger.Error(
+			"failed to get reply position",
 			"thread_id", threadID,
 			"reply_id", replyID,
 			"error", err,
@@ -815,14 +872,21 @@ func getReplyPositionHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	json.NewEncoder(w).Encode(map[string]int64{
+	if err := json.NewEncoder(w).Encode(map[string]int64{
 		"position": position,
-	})
+	}); err != nil {
+		logger.Error(
+			"getReplyPosition encode error",
+			"error", err,
+			"status", http.StatusOK,
+		)
+	}
 }
+
 func getReplyPosition(
 	ctx context.Context,
 	threadID int64,
-	replyID string,
+	replyID uuid.UUID,
 ) (int64, error) {
 
 	const query = `
@@ -833,10 +897,10 @@ func getReplyPosition(
 				ROW_NUMBER() OVER (
 					ORDER BY created_at ASC, id ASC
 				) AS position
-			FROM replies
+			FROM public.replies
 			WHERE thread_id = $1
-		) r
-		WHERE id = $2;
+		) AS r
+		WHERE id = $2
 	`
 
 	var position int64
@@ -856,26 +920,27 @@ func getReplyPosition(
 }
 
 func getReplyByID(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("replyID")
+	replyIDString := r.PathValue("replyID")
 
-	if id == "" {
-		http.Error(w, "Reply ID is required", http.StatusBadRequest)
+	replyID, err := uuid.Parse(replyIDString)
+	if err != nil {
+		http.Error(w, "Invalid reply ID", http.StatusBadRequest)
 		return
 	}
 
 	var reply ReplyPost
 
-	err := db.QueryRow(
+	err = db.QueryRow(
 		r.Context(),
 		`
 		SELECT
 			id,
 			post,
 			notify
-		FROM replies
+		FROM public.replies
 		WHERE id = $1
 		`,
-		id,
+		replyID,
 	).Scan(
 		&reply.ID,
 		&reply.Post,
@@ -888,8 +953,9 @@ func getReplyByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logger.Error("failed to get reply",
-			"reply_id", id,
+		logger.Error(
+			"failed to get reply",
+			"reply_id", replyID,
 			"error", err,
 			"status", http.StatusInternalServerError,
 		)
@@ -901,8 +967,9 @@ func getReplyByID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(reply); err != nil {
-		logger.Error("failed to encode reply",
-			"reply_id", id,
+		logger.Error(
+			"failed to encode reply",
+			"reply_id", replyID,
 			"error", err,
 			"status", http.StatusOK,
 		)
@@ -910,8 +977,6 @@ func getReplyByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func getThreadByID(w http.ResponseWriter, r *http.Request) {
-	var forumID int64
-
 	forumString := r.URL.Query().Get("f")
 	if forumString == "" {
 		http.Error(w, "Missing forum ID", http.StatusBadRequest)
@@ -933,6 +998,7 @@ func getThreadByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var thread ThreadDetails
+
 	const query = `
 		SELECT
 			t.id,
@@ -940,35 +1006,44 @@ func getThreadByID(w http.ResponseWriter, r *http.Request) {
 			t.forum_id,
 
 			COALESCE(
-				u.id,
+				p.id,
 				'00000000-0000-0000-0000-000000000000'::uuid
-			),
-			COALESCE(u.role, ''),
-			COALESCE(u.name, 'Deleted user'),
-			COALESCE(u.email, ''),
-			COALESCE(u.image, ''),
-			COALESCE(u.replies_count, 0),
-			u."createdAt",
+			) AS author_id,
+
+			COALESCE(a.role, '') AS author_role,
+			COALESCE(p.name, 'Deleted user') AS author_name,
+			COALESCE(a.email, '') AS author_email,
+			COALESCE(p.image_url, '') AS author_image,
+			COALESCE(s.replies_count, 0) AS author_replies_count,
+			p.created_at AS author_created_at,
 
 			t.title,
 			t.content,
 			t.created_at
 
-		FROM threads AS t
+		FROM public.threads AS t
 
-		JOIN forums AS f
+		JOIN public.forums AS f
 			ON f.id = t.forum_id
 
-		LEFT JOIN neon_auth."user" AS u
-			ON u.id = t.user_id
+		LEFT JOIN public.profiles AS p
+			ON p.id = t.user_id
+
+		LEFT JOIN auth.users AS a
+			ON a.id = p.auth_user_id
+
+		LEFT JOIN public.forum_user_stats AS s
+			ON s.user_id = p.auth_user_id
 
 		WHERE t.id = $1
-		`
+		  AND t.forum_id = $2
+	`
 
 	err = db.QueryRow(
 		r.Context(),
 		query,
 		threadID,
+		forumID,
 	).Scan(
 		&thread.ID,
 		&thread.ForumName,
@@ -995,6 +1070,8 @@ func getThreadByID(w http.ResponseWriter, r *http.Request) {
 
 		logger.Error(
 			"getThreadByID query error",
+			"thread_id", threadID,
+			"forum_id", forumID,
 			"error", err,
 			"status", http.StatusInternalServerError,
 		)
@@ -1003,21 +1080,18 @@ func getThreadByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if forumID != thread.ForumID {
-		http.Error(w, "Thread not found", http.StatusNotFound)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(thread); err != nil {
 		logger.Error(
 			"getThreadByID encode error",
+			"thread_id", threadID,
 			"error", err,
 			"status", http.StatusOK,
 		)
 	}
 }
+
 func createReply(w http.ResponseWriter, r *http.Request) {
 	forumIDString := r.PathValue("forumID")
 	threadIDString := r.PathValue("threadID")
@@ -1053,6 +1127,7 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 			"error", err,
 			"status", http.StatusInternalServerError,
 		)
+
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -1076,7 +1151,7 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Make sure thread exists and belongs to this forum.
+	// Make sure the thread exists and belongs to this forum.
 	var exists bool
 
 	err = db.QueryRow(
@@ -1084,7 +1159,7 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 		`
 		SELECT EXISTS (
 			SELECT 1
-			FROM threads
+			FROM public.threads
 			WHERE id = $1
 			  AND forum_id = $2
 		)
@@ -1094,6 +1169,14 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 	).Scan(&exists)
 
 	if err != nil {
+		logger.Error(
+			"createReply failed to check thread",
+			"error", err,
+			"thread_id", threadID,
+			"forum_id", forumID,
+			"status", http.StatusInternalServerError,
+		)
+
 		http.Error(w, "Failed to check thread", http.StatusInternalServerError)
 		return
 	}
@@ -1108,7 +1191,7 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
-		INSERT INTO replies (
+		INSERT INTO public.replies (
 			thread_id,
 			user_id,
 			post,
@@ -1118,6 +1201,7 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 		RETURNING
 			id,
 			thread_id,
+			user_id,
 			post,
 			notify,
 			created_at
@@ -1129,6 +1213,7 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 	).Scan(
 		&reply.ID,
 		&reply.ThreadID,
+		&reply.UserID,
 		&reply.Post,
 		&reply.Notify,
 		&reply.CreatedAt,
@@ -1136,20 +1221,17 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		logger.Error(
-			"createReply INSERT error",
+			"createReply insert error",
 			"error", err,
+			"user_id", user.ID,
+			"thread_id", threadID,
+			"forum_id", forumID,
 			"status", http.StatusInternalServerError,
 		)
 
-		http.Error(
-			w,
-			"Failed to create reply",
-			http.StatusInternalServerError,
-		)
+		http.Error(w, "Failed to create reply", http.StatusInternalServerError)
 		return
 	}
-
-	reply.UserID = user.ID.String()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -1160,6 +1242,5 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 			"error", err,
 			"status", http.StatusCreated,
 		)
-		return
 	}
 }

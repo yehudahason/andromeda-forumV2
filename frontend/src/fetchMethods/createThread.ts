@@ -1,4 +1,4 @@
-import { getAuthToken } from "../lib/getAuthToken";
+import getToken from "../lib/getToken";
 import type { Post } from "../components/PostComposer";
 import type { CreateThreadResponse } from "../types";
 
@@ -6,7 +6,7 @@ export async function createThread(
   item: Post,
   forum_id: number,
 ): Promise<CreateThreadResponse> {
-  const token = await getAuthToken();
+  const token = await getToken();
   const url = "https://api.pitron-halomot.org";
 
   const res = await fetch(`${url}/api/forums/${forum_id}/threads`, {

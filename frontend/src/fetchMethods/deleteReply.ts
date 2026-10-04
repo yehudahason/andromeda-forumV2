@@ -1,10 +1,10 @@
-import { getAuthToken } from "../lib/getAuthToken";
+import getToken from "../lib/getToken";
 
 export async function deleteReply(id: string, signal?: AbortSignal) {
   let token;
   const url = "https://api.pitron-halomot.org";
   try {
-    token = await getAuthToken();
+    token = await getToken();
   } catch (e) {
     console.log(e);
     return "error processing token";

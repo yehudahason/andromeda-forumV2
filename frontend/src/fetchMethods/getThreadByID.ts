@@ -1,4 +1,4 @@
-import { getAuthToken } from "../lib/getAuthToken";
+import getToken from "../lib/getToken";
 import type { ThreadDetails } from "../types";
 export async function getThreadByID(
   threadID: number,
@@ -7,7 +7,7 @@ export async function getThreadByID(
   const url = "https://api.pitron-halomot.org";
   let token;
   try {
-    token = await getAuthToken();
+    token = await getToken();
   } catch (e) {
     console.log(e);
     token = null;

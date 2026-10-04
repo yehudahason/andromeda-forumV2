@@ -1,8 +1,8 @@
 import type { Post } from "../components/PostComposer";
-import { getAuthToken } from "../lib/getAuthToken";
+import getToken from "../lib/getToken";
 
 export async function updateThread(item: Post, threadID: number) {
-  const token = await getAuthToken();
+  const token = await getToken();
 
   const res = await fetch(
     `https://api.pitron-halomot.org/api/threads/${threadID}`,

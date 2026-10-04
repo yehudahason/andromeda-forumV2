@@ -1,10 +1,10 @@
-import { getAuthToken } from "../lib/getAuthToken";
+import getToken from "../lib/getToken";
 import type { LatestPost } from "../types";
 export async function getLatestPosts(page: number = 1): Promise<LatestPost[]> {
   const url = "https://api.pitron-halomot.org";
   let token;
   try {
-    token = await getAuthToken();
+    token = await getToken();
   } catch (e) {
     console.log(e);
     token = null;

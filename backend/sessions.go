@@ -189,28 +189,36 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getUserByIDEndpoint(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("id")
+	userIDString := r.PathValue("id")
 
-	if userID == "" {
-		http.Error(w, "user id is required", http.StatusBadRequest)
+	userID, err := uuid.Parse(userIDString)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
 		return
 	}
 
 	var user User
 
-	err := db.QueryRow(
+	err = db.QueryRow(
 		r.Context(),
 		`
 		SELECT
-			id,
-			name,
-			email,
-			role,
-			image,
-			replies_count,
-			created_at
-		FROM neon_auth."user"
-		WHERE id = $1
+			p.id,
+			p.name,
+			COALESCE(a.email, '') AS email,
+			p.role,
+			COALESCE(p.image_url, '') AS image,
+			COALESCE(s.replies_count, 0) AS replies_count,
+			p.created_at
+		FROM public.profiles AS p
+
+		LEFT JOIN auth.users AS a
+			ON a.id = p.auth_user_id
+
+		LEFT JOIN public.forum_user_stats AS s
+			ON s.user_id = p.auth_user_id
+
+		WHERE p.id = $1
 		`,
 		userID,
 	).Scan(
@@ -220,21 +228,23 @@ func getUserByIDEndpoint(w http.ResponseWriter, r *http.Request) {
 		&user.Role,
 		&user.Image,
 		&user.RepliesCount,
+		&user.CreatedAt,
 	)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			http.Error(w, "user not found", http.StatusNotFound)
+			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
 
-		logger.Error("failed to get user",
+		logger.Error(
+			"failed to get user",
 			"error", err,
 			"user_id", userID,
 			"status", http.StatusInternalServerError,
 		)
 
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -244,6 +254,8 @@ func getUserByIDEndpoint(w http.ResponseWriter, r *http.Request) {
 		logger.Error(
 			"failed to encode user",
 			"error", err,
+			"user_id", userID,
+			"status", http.StatusOK,
 		)
 	}
 }

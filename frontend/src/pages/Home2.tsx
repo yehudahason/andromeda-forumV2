@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
-import getToken from "../lib/getToken";
 import { getMe } from "../lib/getMe";
 
 export default function Home() {
@@ -24,7 +23,6 @@ export default function Home() {
 
       setUser(session.user);
       setLoading(false);
-      console.log(await getToken());
       console.log(await getMe());
     }
 

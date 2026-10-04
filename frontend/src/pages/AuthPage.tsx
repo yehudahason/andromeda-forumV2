@@ -9,6 +9,7 @@ export default function AuthPage() {
 
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -55,6 +56,9 @@ export default function AuthPage() {
           password,
 
           options: {
+            data: {
+              name: name.trim(),
+            },
             // User returns here after clicking verification email.
             emailRedirectTo: `${window.location.origin}/auth`,
           },
@@ -154,6 +158,25 @@ export default function AuthPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === "signup" && (
+            <div>
+              <label
+                htmlFor="name"
+                className="mb-2 block text-sm font-medium text-slate-300"
+              >
+                שם משתמש
+              </label>
+
+              <input
+                id="name"
+                type="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+              />
+            </div>
+          )}
           <div>
             <label
               htmlFor="email"

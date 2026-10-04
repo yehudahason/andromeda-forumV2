@@ -74,7 +74,8 @@ func getUserID(r *http.Request) (User, error) {
 			p.role,
 			COALESCE(a.email, ''),
 			COALESCE(p.image_url, ''),
-			COALESCE(s.replies_count, 0)
+			COALESCE(s.replies_count, 0),
+			p.created_at
 		FROM auth.users AS a
 		JOIN public.profiles AS p
 			ON p.auth_user_id = a.id
@@ -90,6 +91,7 @@ func getUserID(r *http.Request) (User, error) {
 		&user.Email,
 		&user.Image,
 		&user.RepliesCount,
+		&user.CreatedAt,
 	)
 
 	if err != nil {

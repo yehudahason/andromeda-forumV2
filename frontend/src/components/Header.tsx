@@ -8,14 +8,11 @@ import { useUserStore } from "../stores/userStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { supabase } from "../lib/supabase.ts";
 
-import Login from "../Login.tsx";
 export default function Header() {
   const [tzurMenu, setTzurMenu] = useState<boolean>(false);
   const [notiMenu, setNotiMenu] = useState<boolean>(false);
   const [mailMenu, setMailMenu] = useState<boolean>(false);
-  const [isLogin, setIsLogin] = useState<boolean>(false);
   const [isMenu, setIsMenu] = useState<boolean>(false);
-  const [signUp, setSignUp] = useState<boolean>(false);
 
   const baseUrl = import.meta.env.BASE_URL;
   const { user, setUser } = useUserStore((state) => state);
@@ -29,7 +26,7 @@ export default function Header() {
 
       setUser(null);
       setSession(null);
-      setIsLogin(false);
+
       console.log("4. signed out");
     } catch (error) {
       console.error("5. signOut exception:", error);
@@ -318,8 +315,6 @@ export default function Header() {
             <div className="flex gap-4 items-center">
               <button
                 onClick={() => {
-                  // setIsLogin(!isLogin);
-                  // setSignUp(true);
                   navigate("/auth?mode=signup");
                 }}
                 className="w-fit py-2 font-medium px-4 cursor-pointer rounded-lg text-amber-200"
@@ -328,16 +323,12 @@ export default function Header() {
               </button>
               <button
                 onClick={() => {
-                  // setIsLogin(!isLogin);
-                  // setSignUp(false);
                   navigate("/auth?mode=login");
                 }}
                 className="w-fit py-2 font-medium px-4  cursor-pointer rounded-lg bg-sky-400"
               >
                 התחבר
               </button>
-
-              {isLogin && <Login signUp={signUp} setIsLogin={setIsLogin} />}
             </div>
           )}
         </div>

@@ -1,0 +1,28 @@
+POST   /api/threads
+       forum_id: number
+       title: string
+       content: string
+       notify: boolean
+
+PUT    /api/threads/:id
+       id: number
+       title: string
+       content: string
+       notify: boolean
+
+DELETE /api/threads/:id
+       id: number
+
+
+POST   /api/replies
+       thread_id: number
+       post: string
+       notify: boolean
+
+PUT    /api/replies/:id
+       id: string (UUID)
+       post: string
+       notify: boolean
+
+DELETE /api/replies/:id
+       id: string (UUID)

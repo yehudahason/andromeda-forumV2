@@ -17,6 +17,8 @@ CREATE TABLE public.profiles (
   -- available for historical forum posts.
   auth_user_id UUID UNIQUE,
   name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'user'
+  CHECK (role IN ('user', 'admin', 'moderator')),
   image_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),

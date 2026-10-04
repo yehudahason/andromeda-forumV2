@@ -1,96 +1,55 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import type { User } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
+import CreateForum from "../components/CreateForum";
+import ForumList from "../components/ForumList";
+import { getForums } from "../fetchMethods/getForums";
+import type { ForumType } from "../types";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import type { CreateForumData } from "../fetchMethods/createForum";
 
 export default function Home() {
-  const navigate = useNavigate();
+  const [showMenu, setShowMenu] = useState<boolean>(false);
+  const [dataU, setDataU] = useState<CreateForumData | undefined>();
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["forums", showMenu],
+    queryFn: () => getForums(),
+  });
 
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        navigate("/auth", { replace: true });
-        return;
-      }
-
-      setUser(session.user);
-      setLoading(false);
-    }
-
-    loadSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        navigate("/auth", { replace: true });
-        return;
-      }
-
-      setUser(session.user);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [navigate]);
-
-  async function handleLogout() {
-    await supabase.auth.signOut();
-
-    navigate("/auth", { replace: true });
+  const baseUrl = import.meta.env.BASE_URL;
+  const forums: ForumType[] | undefined = data;
+  if (isLoading) {
+    return (
+      <div className="text-amber-300  mt-12 text-2xl text-center">טוען...</div>
+    );
   }
 
-  if (loading) {
+  if (isError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-        טוען...
+      <div className="text-red-500  mt-12 text-2xl text-center">
+        {error.message}
       </div>
     );
   }
 
   return (
-    <div
-      dir="rtl"
-      className="flex min-h-screen items-center justify-center bg-slate-950 px-4"
-    >
-      <div className="w-full max-w-lg rounded-2xl bg-slate-900 p-8 text-white shadow-xl">
-        <h1 className="mb-6 text-3xl font-bold">שלום 👋</h1>
-
-        <div className="space-y-3 text-slate-300">
-          <p>
-            <span className="font-semibold text-white">Email:</span>{" "}
-            {user?.email}
-          </p>
-
-          <p>
-            <span className="font-semibold text-white">User ID:</span>{" "}
-            <span className="break-all" dir="ltr">
-              {user?.id}
-            </span>
-          </p>
-
-          <p>
-            <span className="font-semibold text-white">Provider:</span>{" "}
-            {user?.app_metadata.provider}
-          </p>
-        </div>
-
+    <section className="mx-auto max-w-[1280px]">
+      <div className="flex my-8 text-white justify-between items-center w-full">
+        <h3 className="text-2xl font-semibold">פורומים</h3>
         <button
-          type="button"
-          onClick={handleLogout}
-          className="mt-8 w-full rounded-lg bg-red-500 px-4 py-3 font-semibold text-white transition hover:bg-red-400"
+          onClick={() => {
+            setDataU(undefined);
+            setShowMenu((prev) => !prev);
+          }}
+          className="cursor-pointer"
         >
-          התנתק
+          <img src={`${baseUrl}add.png`} alt="" />
         </button>
       </div>
-    </div>
+      {showMenu && <CreateForum data={dataU} setShowMenu={setShowMenu} />}
+      <ForumList
+        setShowMenu={setShowMenu}
+        setDataU={setDataU}
+        forums={forums ?? []}
+      />
+    </section>
   );
 }

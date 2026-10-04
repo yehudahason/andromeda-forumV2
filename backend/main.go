@@ -182,6 +182,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		allowedOrigins := map[string]bool{
 			"http://localhost:5173":          true,
 			"https://lab.pitron-halomot.org": true,
+			"http://127.0.0.1:5173":          true,
 		}
 
 		//Headers

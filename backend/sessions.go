@@ -69,15 +69,17 @@ func getUserID(r *http.Request) (User, error) {
 		r.Context(),
 		`
 		SELECT
-			u.id,
-			COALESCE(u.name, ''),
-			COALESCE(u.role, 'user'),
+			p.id,
+			p.name,
+			p.role,
 			COALESCE(a.email, ''),
-			COALESCE(u.image, ''),
-			COALESCE(u.replies_count, 0)
+			COALESCE(p.image_url, ''),
+			COALESCE(s.replies_count, 0)
 		FROM auth.users AS a
-		JOIN public.users AS u
-			ON u.id = a.id
+		JOIN public.profiles AS p
+			ON p.auth_user_id = a.id
+		LEFT JOIN public.forum_user_stats AS s
+			ON s.user_id = a.id
 		WHERE a.id = $1
 		`,
 		userID,
@@ -125,8 +127,10 @@ func getUserID(r *http.Request) (User, error) {
 			_, err = db.Exec(
 				r.Context(),
 				`
-				UPDATE public.users
-				SET image = $1
+				UPDATE public.profiles
+				SET
+					image_url = $1,
+					updated_at = clock_timestamp()
 				WHERE id = $2
 				`,
 				r2ImageURL,

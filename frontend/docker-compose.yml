@@ -1,0 +1,8 @@
+services:
+  forum-v2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:80"
+    restart: unless-stopped

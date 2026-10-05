@@ -19,11 +19,6 @@
     "@supabase/supabase-js": "^2.117.2",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.104.1",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.4",
-    "tailwindcss": "^4.3.3",
-    "zustand": "^5.0.15",
     "@tiptap/extension-code-block": "^3.30.5",
     "@tiptap/extension-image": "^3.30.5",
     "@tiptap/extension-link": "^3.30.5",
@@ -31,7 +26,13 @@
     "@tiptap/pm": "^3.30.5",
     "@tiptap/react": "^3.30.5",
     "@tiptap/starter-kit": "^3.30.5",
-    "emoji-picker-react": "^4.19.1"
+    "emoji-picker-react": "^4.19.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4",
+    "tailwindcss": "^4.3.3",
+    "vitest": "^5.0.3",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -161,7 +161,8 @@ site_url = "http://127.0.0.1:5173"
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
-  "http://127.0.0.1:5173"
+  "http://127.0.0.1:5173" ,
+  "https://lab.pitron-halomot.org/"
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600

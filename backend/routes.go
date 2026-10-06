@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+
 	"net/http"
 	"strconv"
 	"strings"
@@ -176,7 +178,8 @@ func getThreads(w http.ResponseWriter, r *http.Request) {
 			t.last_post_title,
 			COALESCE(lp.name, 'Deleted user') AS last_post_author,
 			t.last_post_date,
-			t.created_at
+			t.created_at,
+			t.views
 		FROM public.threads AS t
 
 		LEFT JOIN public.profiles AS u
@@ -218,6 +221,7 @@ func getThreads(w http.ResponseWriter, r *http.Request) {
 			&thread.LastPostAuthor,
 			&thread.LastPostDate,
 			&thread.CreatedAt,
+			&thread.Views,
 		)
 		if err != nil {
 			http.Error(w, "Failed to scan thread", http.StatusInternalServerError)
@@ -997,6 +1001,14 @@ func getThreadByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = incrementThreadViews(r.Context(), threadID)
+	if err != nil {
+		logger.Error("failed to increment thread views",
+			"thread_id", threadID,
+			"error", err,
+		)
+	}
+
 	var thread ThreadDetails
 
 	const query = `
@@ -1091,7 +1103,23 @@ func getThreadByID(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 }
+func incrementThreadViews(ctx context.Context, threadID int64) error {
+	_, err := db.Exec(
+		ctx,
+		`
+		UPDATE threads
+		SET views = views + 1
+		WHERE id = $1
+		`,
+		threadID,
+	)
 
+	if err != nil {
+		return fmt.Errorf("increment thread views: %w", err)
+	}
+
+	return nil
+}
 func createReply(w http.ResponseWriter, r *http.Request) {
 	forumIDString := r.PathValue("forumID")
 	threadIDString := r.PathValue("threadID")

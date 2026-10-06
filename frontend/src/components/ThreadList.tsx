@@ -89,7 +89,7 @@ export default function ThreadList({
           <li
             key={thread.id}
             dir="rtl"
-            className="relative grid min-h-[120px] p-4 gap-4 grid-cols-1 sm:grid-cols-[1fr_100px_1fr] items-center border-b 
+            className="relative grid min-h-[120px] p-4  grid-cols-1 sm:grid-cols-[4fr_2fr] items-center border-b 
            border-white/15  last:border-b-0"
           >
             <button
@@ -111,51 +111,62 @@ export default function ThreadList({
               <div className="min-w-0">
                 <a
                   href={`/forum/${thread.forum_id}/${thread.id}`}
-                  className="block flex-1  truncate text-[20px] font-medium text-[#0BD7FD] hover:underline"
+                  className="block flex-1 break-all  text-[20px] font-medium text-[#0BD7FD] hover:underline"
                 >
                   {thread.title}
                 </a>
 
-                <p className="truncate text-[16px] text-white">
+                <p className="truncate text-[16px] text-white flex gap-2">
                   <span>נפתח על ידי -</span>
-                  <span>
-                    {thread.author} {formatDate(thread.created_at)}
-                  </span>
+                  <span>{thread.author}</span>
+                  <span>{formatDate(thread.created_at)}</span>
                 </p>
               </div>
             </div>
 
             {/* Messages */}
-            <div className="sm:text-center text-right px-2">
-              <p className="text-2xl">
-                {thread.messages_count.toLocaleString()}
-              </p>
+            <div className="flex gap-2 items-center justify-between">
+              <div className="sm:text-center gap-2 items-center justify-items-center flex sm:flex-col text-right sm:px-1">
+                <div className="sm:block flex gap-1">
+                  <p className="text-sm break-all text-center text-neutral-300">
+                    1400
+                    {thread.messages_count.toLocaleString()}
+                  </p>
 
-              <p className="text-sm text-white/90">הודעות</p>
-            </div>
+                  <p className="text-sm text-center text-white font-medium">
+                    הודעות
+                  </p>
+                </div>
+                <div className="sm:block flex gap-1">
+                  <p className="text-sm  text-neutral-300 break-all text-center">
+                    {thread.views}
+                  </p>
 
-            {/* Last post */}
-            <div className="min-w-0 text-right px-2">
-              {thread.last_post_title && (
+                  <p className="text-sm text-center text-white font-medium">
+                    צפיות
+                  </p>
+                </div>
+              </div>
+
+              {/* Last post */}
+              <div className="min-w-0 text-right sm:px-2">
                 <a
                   href={`/forum/${thread.forum_id}/${thread.id}`}
                   className="block truncate text-[18px] text-[#0BD7FD] hover:underline"
                 >
-                  {thread.last_post_title}
+                  <div className="flex flex-col justify-center sm:items-end items-center gap-1">
+                    {thread.last_post_date && (
+                      <p className="text-sm mt-1 text-white">
+                        תגובה אחרונה ב {formatDate(thread.last_post_date)}
+                      </p>
+                    )}
+                    {thread.last_post_author && (
+                      <>
+                        <p className="text-sm">{thread.last_post_author}</p>
+                      </>
+                    )}
+                  </div>
                 </a>
-              )}
-              <div className="flex items-center gap-1">
-                {thread.last_post_author && (
-                  <p className="mt-1 text-sm text-white">
-                    על-ידי {thread.last_post_author}
-                  </p>
-                )}
-                ,
-                {thread.last_post_date && (
-                  <p className="text-sm mt-1 text-white">
-                    {formatDate(thread.last_post_date)}
-                  </p>
-                )}
               </div>
             </div>
           </li>

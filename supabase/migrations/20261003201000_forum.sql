@@ -172,6 +172,8 @@ CREATE TABLE forums (
 CREATE TABLE threads (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   forum_id BIGINT NOT NULL,
+  views BIGINT NOT NULL DEFAULT 0
+    CONSTRAINT threads_views_check CHECK (views >= 0),
   -- Normally references a preserved public profile.
   -- New threads must reference an active auth user; NULL is only possible if the profile itself is deleted.
   user_id UUID,

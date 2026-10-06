@@ -19,6 +19,7 @@ export type ThreadType = {
   last_post_author: string | null;
   last_post_date: string | null;
   created_at: string;
+  views: string;
 };
 
 export type ForumType = {

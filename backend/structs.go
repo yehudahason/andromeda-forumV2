@@ -35,6 +35,7 @@ type Thread struct {
 	LastPostAuthor *string    `json:"last_post_author"`
 	LastPostDate   *time.Time `json:"last_post_date"`
 	CreatedAt      time.Time  `json:"created_at"`
+	Views          int64      `json:"views"`
 }
 
 type ThreadListResponse struct {

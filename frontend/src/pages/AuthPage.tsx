@@ -139,21 +139,25 @@ export default function AuthPage() {
   return (
     <div
       dir="rtl"
-      className="flex fixed top-0 left-0 h-full w-full items-center justify-center bg-slate-950 px-4"
+      onClick={() => navigate("/")}
+      className="flex fixed top-0 left-0 h-full w-full items-center justify-center  sm:px-4 px-1"
     >
-      <div className="w-full max-w-md rounded-2xl bg-slate-900 p-8 shadow-xl relative">
-        <a href="/">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl bg-slate-900 sm:px-8 px-4 py-2 shadow-xl relative"
+      >
+        <button onClick={() => navigate("/")}>
           <img
             className="absolute top-4 left-4"
             src={`${baseUrl}close2.png`}
             alt=""
           />
-        </a>
+        </button>
         <h1 className="mb-2 text-center text-3xl font-bold text-white">
           {mode === "login" ? "התחברות" : "הרשמה"}
         </h1>
 
-        <p className="mb-8 text-center text-sm text-slate-400">
+        <p className="mb-4 text-center text-sm text-slate-400">
           {mode === "login" ? "התחבר לחשבון שלך" : "צור חשבון חדש"}
         </p>
 

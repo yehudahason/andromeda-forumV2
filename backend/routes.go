@@ -103,6 +103,23 @@ func getForums(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func getThreads(w http.ResponseWriter, r *http.Request) {
+
+	user, err := getUserID(r)
+	if err != nil {
+		if errors.Is(err, ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		logger.Error(
+			"getThreads authentication error",
+			"error", err,
+		)
+
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 	const perPage = 14
 
 	forumIDString := r.PathValue("forumID")
@@ -169,38 +186,50 @@ func getThreads(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(
 		r.Context(),
 		`
-		SELECT
-			t.id,
-			t.forum_id,
-			t.title,
-			COALESCE(u.name, 'Deleted user') AS author,
-			t.messages_count,
-			t.last_post_title,
-			COALESCE(lp.name, 'Deleted user') AS last_post_author,
-			t.last_post_date,
-			t.created_at,
-			t.views
-		FROM public.threads AS t
+	SELECT
+		t.id,
+		t.forum_id,
+		t.title,
+		COALESCE(u.name, 'Deleted user') AS author,
+		t.messages_count,
+		t.last_post_title,
+		COALESCE(lp.name, 'Deleted user') AS last_post_author,
+		t.last_post_date,
+		t.created_at,
+		t.views,
 
-		LEFT JOIN public.profiles AS u
-			ON u.id = t.user_id
+		CASE
+			WHEN tr.last_read_at IS NULL THEN TRUE
+			WHEN t.last_post_date > tr.last_read_at THEN TRUE
+			ELSE FALSE
+		END AS unread
 
-		LEFT JOIN public.profiles AS lp
-			ON lp.id = t.last_post_author_id
+	FROM public.threads AS t
 
-		WHERE t.forum_id = $1
+	LEFT JOIN public.profiles AS u
+		ON u.id = t.user_id
 
-		ORDER BY
-			t.sticky DESC,
-			t.last_post_date DESC,
-			t.id DESC
+	LEFT JOIN public.profiles AS lp
+		ON lp.id = t.last_post_author_id
 
-		LIMIT $2
-		OFFSET $3
-		`,
+	LEFT JOIN public.thread_reads AS tr
+		ON tr.thread_id = t.id
+		AND tr.user_id = $4
+
+	WHERE t.forum_id = $1
+
+	ORDER BY
+		t.sticky DESC,
+		t.last_post_date DESC,
+		t.id DESC
+
+	LIMIT $2
+	OFFSET $3
+	`,
 		forumID,
 		perPage,
 		offset,
+		user.ID,
 	)
 	if err != nil {
 		http.Error(w, "Failed to get threads", http.StatusInternalServerError)
@@ -222,6 +251,7 @@ func getThreads(w http.ResponseWriter, r *http.Request) {
 			&thread.LastPostDate,
 			&thread.CreatedAt,
 			&thread.Views,
+			&thread.Unread,
 		)
 		if err != nil {
 			http.Error(w, "Failed to scan thread", http.StatusInternalServerError)
@@ -545,6 +575,7 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
+	WITH new_thread AS (
 		INSERT INTO public.threads (
 			forum_id,
 			user_id,
@@ -561,7 +592,32 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 			content,
 			notify,
 			created_at
-		`,
+	),
+	mark_read AS (
+		INSERT INTO public.thread_reads (
+			user_id,
+			thread_id,
+			last_read_at
+		)
+		SELECT
+			$2,
+			id,
+			now()
+		FROM new_thread
+		ON CONFLICT (user_id, thread_id)
+		DO UPDATE SET
+			last_read_at = EXCLUDED.last_read_at
+	)
+	SELECT
+		id,
+		forum_id,
+		user_id,
+		title,
+		content,
+		notify,
+		created_at
+	FROM new_thread
+	`,
 		forumID,
 		user.ID,
 		input.Title,
@@ -672,6 +728,7 @@ func updateThread(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
+	WITH updated_thread AS (
 		UPDATE public.threads
 		SET
 			title = $1,
@@ -684,7 +741,29 @@ func updateThread(w http.ResponseWriter, r *http.Request) {
 			title,
 			content,
 			notify
-		`,
+	),
+	mark_read AS (
+		INSERT INTO public.thread_reads (
+			user_id,
+			thread_id,
+			last_read_at
+		)
+		SELECT
+			$5,
+			id,
+			now()
+		FROM updated_thread
+		ON CONFLICT (user_id, thread_id)
+		DO UPDATE SET
+			last_read_at = EXCLUDED.last_read_at
+	)
+	SELECT
+		id,
+		title,
+		content,
+		notify
+	FROM updated_thread
+	`,
 		input.Title,
 		input.Content,
 		input.Notify,
@@ -784,6 +863,7 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
+	WITH updated_reply AS (
 		UPDATE public.replies
 		SET
 			post = $1,
@@ -792,9 +872,31 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 		  AND user_id = $4
 		RETURNING
 			id,
+			thread_id,
 			post,
 			notify
-		`,
+	),
+	mark_read AS (
+		INSERT INTO public.thread_reads (
+			user_id,
+			thread_id,
+			last_read_at
+		)
+		SELECT
+			$4,
+			thread_id,
+			now()
+		FROM updated_reply
+		ON CONFLICT (user_id, thread_id)
+		DO UPDATE SET
+			last_read_at = EXCLUDED.last_read_at
+	)
+	SELECT
+		id,
+		post,
+		notify
+	FROM updated_reply
+	`,
 		input.Post,
 		input.Notify,
 		replyID,
@@ -804,7 +906,6 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 		&reply.Post,
 		&reply.Notify,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, "Reply not found or not allowed", http.StatusNotFound)
@@ -1092,6 +1193,35 @@ func getThreadByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	user, err := getUserID(r)
+
+	if err == nil {
+		_, err = db.Exec(
+			r.Context(),
+			`
+		INSERT INTO public.thread_reads (
+			user_id,
+			thread_id,
+			last_read_at
+		)
+		VALUES ($1, $2, now())
+		ON CONFLICT (user_id, thread_id)
+		DO UPDATE SET
+			last_read_at = EXCLUDED.last_read_at
+		`,
+			user.ID,
+			threadID,
+		)
+
+		if err != nil {
+			logger.Error(
+				"failed to mark thread as read",
+				"error", err,
+				"user_id", user.ID,
+				"thread_id", threadID,
+			)
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(thread); err != nil {
@@ -1219,6 +1349,7 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		r.Context(),
 		`
+	WITH new_reply AS (
 		INSERT INTO public.replies (
 			thread_id,
 			user_id,
@@ -1233,7 +1364,31 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 			post,
 			notify,
 			created_at
-		`,
+	),
+	mark_read AS (
+		INSERT INTO public.thread_reads (
+			user_id,
+			thread_id,
+			last_read_at
+		)
+		SELECT
+			user_id,
+			thread_id,
+			created_at
+		FROM new_reply
+		ON CONFLICT (user_id, thread_id)
+		DO UPDATE SET
+			last_read_at = EXCLUDED.last_read_at
+	)
+	SELECT
+		id,
+		thread_id,
+		user_id,
+		post,
+		notify,
+		created_at
+	FROM new_reply
+	`,
 		threadID,
 		user.ID,
 		input.Post,

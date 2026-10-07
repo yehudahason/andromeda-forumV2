@@ -14,7 +14,12 @@ INSERT INTO threads (
 )
 SELECT
     1 AS forum_id,
-    '92088acc-8c08-4dfc-80f7-21d9290d5d6d'::uuid AS user_id,
+     (
+        SELECT id
+        FROM auth."users"
+        ORDER BY random()
+        LIMIT 1
+    ) AS user_id,
     'Dummy Thread ' || n AS title,
     '<p>This is dummy content for thread ' || n || '.</p>' AS content,
     FALSE AS notify,

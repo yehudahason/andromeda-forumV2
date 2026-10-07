@@ -4,6 +4,7 @@ import ThreadList from "../components/ThreadList";
 import { getThreads } from "../fetchMethods/getThreads";
 import type { ThreadType } from "../types";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 export default function ForumPage() {
   const { f } = useParams();
   const [searchParams] = useSearchParams();
@@ -17,6 +18,9 @@ export default function ForumPage() {
   const threads: ThreadType[] = data?.threads ?? [];
   const total = data?.total ?? 0;
   const forumName = data?.forum_name ?? "";
+  useEffect(() => {
+    console.log(threads);
+  }, [threads]);
   if (isLoading) {
     return (
       <div className="text-amber-300  mt-12 text-2xl text-center">טוען...</div>

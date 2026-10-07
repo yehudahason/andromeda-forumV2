@@ -195,6 +195,19 @@ CREATE TABLE threads (
   CONSTRAINT threads_content_length_check CHECK (char_length(content) BETWEEN 1 AND 100000)
 );
 
+CREATE TABLE thread_reads (
+    user_id UUID NOT NULL
+        REFERENCES public.profiles(id)
+        ON DELETE CASCADE,
+
+    thread_id BIGINT NOT NULL
+        REFERENCES public.threads(id)
+        ON DELETE CASCADE,
+
+    last_read_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    PRIMARY KEY (user_id, thread_id)
+);
 ALTER TABLE forums
 ADD CONSTRAINT forums_last_post_thread_fk FOREIGN KEY (last_post_thread_id) REFERENCES threads (id) ON DELETE SET NULL;
 

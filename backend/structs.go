@@ -36,6 +36,7 @@ type Thread struct {
 	LastPostDate   *time.Time `json:"last_post_date"`
 	CreatedAt      time.Time  `json:"created_at"`
 	Views          int64      `json:"views"`
+	Unread         bool       `json:"unread"`
 }
 
 type ThreadListResponse struct {

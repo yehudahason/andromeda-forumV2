@@ -14,7 +14,6 @@ dist-ssr
 .env.local
 .env.*.local
 
-supabase
 .env
 # Editor directories and files
 .vscode/*
@@ -44,6 +43,7 @@ dist-ssr
 
 supabase/.temp/
 supabase/.branches/
+supabase/snippets/
 
 # Editor directories and files
 .vscode/*
@@ -55,5 +55,4 @@ supabase/.branches/
 *.njsproj
 *.sln
 *.sw?
-supabase/
 1.txt

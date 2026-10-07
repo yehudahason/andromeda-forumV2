@@ -106,7 +106,25 @@ export default function ThreadList({
               <img className="w-3 h-3.5" src={`${baseUrl}delete.png`} alt="" />
             </button>
             {/* Forum */}
-            <div className="flex justify-between min-w-0 items-center gap-5 text-right">
+            <div className="flex min-w-0 items-center gap-1 text-right">
+              <a
+                title="יש הודעות חדשות"
+                href={`/forum/${thread.forum_id}/${thread.id}`}
+                className="ml-4"
+              >
+                <img
+                  className={`${thread.views ? "hidden" : "block"}`}
+                  src={`${baseUrl}notifications_unread.png`}
+                  alt=""
+                />{" "}
+                <img
+                  title="אין הודעות חדשות"
+                  className={`${!thread.views ? "hidden" : "block"}`}
+                  src={`${baseUrl}notifications.png`}
+                  alt=""
+                />
+              </a>
+
               {/* Text */}
               <div className="min-w-0">
                 <a
@@ -122,15 +140,6 @@ export default function ThreadList({
                   <span>{formatDate(thread.created_at)}</span>
                 </p>
               </div>
-              {thread.unread && (
-                <a
-                  title="יש הודעות חדשות"
-                  href={`/forum/${thread.forum_id}/${thread.id}`}
-                  className="ml-4"
-                >
-                  <img src={`${baseUrl}notifications_unread.png`} alt="" />
-                </a>
-              )}
             </div>
 
             {/* Messages */}

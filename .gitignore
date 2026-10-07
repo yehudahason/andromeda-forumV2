@@ -44,7 +44,7 @@ dist-ssr
 supabase/.temp/
 supabase/.branches/
 supabase/snippets/
-supabase/
+supabase/config.toml
 
 # Editor directories and files
 .vscode/*

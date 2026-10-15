@@ -108,18 +108,18 @@ export default function ThreadList({
             {/* Forum */}
             <div className="flex min-w-0 items-center gap-1 text-right">
               <a
-                title="יש הודעות חדשות"
                 href={`/forum/${thread.forum_id}/${thread.id}`}
                 className="ml-4"
               >
                 <img
-                  className={`${thread.views ? "hidden" : "block"}`}
+                  title="יש הודעות חדשות"
+                  className={`${thread.unread ? "block" : "hidden"}`}
                   src={`${baseUrl}notifications_unread.png`}
                   alt=""
                 />{" "}
                 <img
                   title="אין הודעות חדשות"
-                  className={`${!thread.views ? "hidden" : "block"}`}
+                  className={`${thread.unread ? "hidden" : "block"}`}
                   src={`${baseUrl}notifications.png`}
                   alt=""
                 />
@@ -147,7 +147,6 @@ export default function ThreadList({
               <div className="sm:text-center gap-2 items-center justify-items-center flex sm:flex-col text-right sm:px-1">
                 <div className="sm:block flex gap-1">
                   <p className="text-sm break-all text-center text-neutral-300">
-                    1400
                     {thread.messages_count.toLocaleString()}
                   </p>
 

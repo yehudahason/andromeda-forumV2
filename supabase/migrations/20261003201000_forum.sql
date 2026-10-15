@@ -184,7 +184,7 @@ CREATE TABLE threads (
   last_post_title TEXT NOT NULL DEFAULT '',
   last_post_author_id UUID,
   last_post_date TIMESTAMPTZ,
-  notify BOOLEAN NOT NULL DEFAULT FALSE,
+  notify BOOLEAN NOT NULL DEFAULT TRUE,
   sticky BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
@@ -229,6 +229,143 @@ CREATE TABLE replies (
   CONSTRAINT replies_user_id_fk FOREIGN KEY (user_id) REFERENCES public.profiles (id) ON DELETE SET NULL,
   CONSTRAINT replies_post_length_check CHECK (char_length(post) BETWEEN 1 AND 100000)
 );
+
+
+CREATE TABLE public.notifications (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    user_id UUID NOT NULL
+        REFERENCES auth.users(id) ON DELETE CASCADE,
+
+    type TEXT NOT NULL
+        CHECK (type IN ('thread_reply', 'private_message')),
+
+    thread_id BIGINT
+        REFERENCES public.threads(id) ON DELETE CASCADE,
+
+    reply_id UUID
+        REFERENCES public.replies(id) ON DELETE CASCADE,
+
+    message_id BIGINT,
+
+    actor_id UUID
+        REFERENCES auth.users(id) ON DELETE SET NULL,
+
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT notifications_target_check CHECK (
+        (
+            type = 'thread_reply'
+            AND thread_id IS NOT NULL
+            AND reply_id IS NOT NULL
+            AND message_id IS NULL
+        )
+        OR
+        (
+            type = 'private_message'
+            AND message_id IS NOT NULL
+            AND thread_id IS NULL
+            AND reply_id IS NULL
+        )
+    )
+);
+
+CREATE INDEX notifications_user_created_idx
+ON public.notifications (user_id, created_at DESC);
+
+CREATE INDEX notifications_unread_idx
+ON public.notifications (user_id, created_at DESC)
+WHERE is_read = FALSE;
+
+CREATE UNIQUE INDEX notifications_unique_reply_idx
+ON public.notifications (user_id, reply_id)
+WHERE type = 'thread_reply';
+
+CREATE UNIQUE INDEX notifications_unique_message_idx
+ON public.notifications (user_id, message_id)
+WHERE type = 'private_message';
+
+CREATE TABLE public.thread_follows (
+    user_id UUID NOT NULL
+        REFERENCES auth.users(id) ON DELETE CASCADE,
+
+    thread_id BIGINT NOT NULL
+        REFERENCES public.threads(id) ON DELETE CASCADE,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    PRIMARY KEY (user_id, thread_id)
+);
+
+CREATE INDEX thread_follows_thread_idx
+ON public.thread_follows (thread_id);
+
+
+CREATE OR REPLACE FUNCTION public.notify_thread_followers()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    INSERT INTO public.notifications (
+        user_id,
+        type,
+        thread_id,
+        reply_id,
+        actor_id
+    )
+    SELECT
+        tf.user_id,
+        'thread_reply',
+        NEW.thread_id,
+        NEW.id,
+        NEW.user_id
+    FROM public.thread_follows AS tf
+    WHERE tf.thread_id = NEW.thread_id
+      AND tf.user_id <> NEW.user_id
+    ON CONFLICT DO NOTHING;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER replies_notify_followers
+AFTER INSERT ON public.replies
+FOR EACH ROW
+EXECUTE FUNCTION public.notify_thread_followers();
+
+-- CREATE OR REPLACE FUNCTION public.notify_private_message()
+-- RETURNS TRIGGER
+-- LANGUAGE plpgsql
+-- SECURITY DEFINER
+-- SET search_path = ''
+-- AS $$
+-- BEGIN
+--     INSERT INTO public.notifications (
+--         user_id,
+--         type,
+--         message_id,
+--         actor_id
+--     )
+--     VALUES (
+--         NEW.recipient_id,
+--         'private_message',
+--         NEW.id,
+--         NEW.sender_id
+--     )
+--     ON CONFLICT DO NOTHING;
+
+--     RETURN NEW;
+-- END;
+-- $$;
+
+-- CREATE TRIGGER private_messages_notify
+-- AFTER INSERT ON public.private_messages
+-- FOR EACH ROW
+-- EXECUTE FUNCTION public.notify_private_message();
 
 -- =========================================================
 -- INDEXES

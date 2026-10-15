@@ -645,7 +645,21 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to create thread", http.StatusInternalServerError)
 		return
 	}
+	if input.Notify {
+		err = FollowThread(
+			r.Context(),
+			thread.UserID,
+			thread.ID,
+		)
 
+		if err != nil {
+			logger.Error(
+				"Failed to follow thread",
+				"error", err,
+				"thread_id", thread.ID,
+			)
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
@@ -1416,6 +1430,21 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// err = NotifyThreadFollowers(
+	// 	r.Context(),
+
+	// 	reply.ThreadID,
+	// 	reply.ID,
+	// 	user.ID,
+	// )
+
+	// if err != nil {
+	// 	logger.Error(
+	// 		"Failed to notify thread followers",
+	// 		"error", err,
+	// 		"thread_id", reply.ThreadID,
+	// 	)
+	// }
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 

@@ -136,3 +136,4 @@ type LatestPost struct {
 	CreatedAt        time.Time `json:"created_at"`
 	MessagesCount    int64     `json:"messages_count"`
 }
+type NotificationType string

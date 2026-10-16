@@ -203,6 +203,14 @@ export default function Replies({
             <img className="w-3 h-3.5" src={`${baseUrl}delete.png`} alt="" />
           </button>
 
+          <a
+            href={`${baseUrl}forum/${forum}/${tid}/?tpage=${currentPage}#${reply.id}`}
+            title="קישור לתגובה"
+            className="absolute w-4 h-4 text-blue-500 top-1 right-3 cursor-pointer"
+          >
+            #
+          </a>
+
           <div className="w-full flex sm:gap-8 gap-4 min-w-0">
             <div className="flex sm:w-30 w-20 shrink-0 flex-col justify-start pt-6 gap-6 items-center">
               <span className="text-center">{reply.author.name}</span>

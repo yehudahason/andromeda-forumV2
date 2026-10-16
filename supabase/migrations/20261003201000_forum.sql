@@ -243,8 +243,11 @@ CREATE TABLE public.notifications (
     thread_id BIGINT
         REFERENCES public.threads(id) ON DELETE CASCADE,
 
+    thread_page BIGINT  NOT NULL DEFAULT 1 ,
+
     reply_id UUID
         REFERENCES public.replies(id) ON DELETE CASCADE,
+
 
     message_id BIGINT,
 
@@ -293,6 +296,7 @@ CREATE TABLE public.thread_follows (
 
     thread_id BIGINT NOT NULL
         REFERENCES public.threads(id) ON DELETE CASCADE,
+    
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
@@ -309,11 +313,21 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+    v_page INTEGER;
 BEGIN
+    -- Calculate the page of the new reply (14 replies per page)
+    SELECT ((COUNT(*) - 1) / 14 + 1)::INTEGER
+    INTO v_page
+    FROM public.replies
+    WHERE thread_id = NEW.thread_id;
+
+    -- Notify all followers except the reply author
     INSERT INTO public.notifications (
         user_id,
         type,
         thread_id,
+        thread_page,
         reply_id,
         actor_id
     )
@@ -321,6 +335,7 @@ BEGIN
         tf.user_id,
         'thread_reply',
         NEW.thread_id,
+        v_page,
         NEW.id,
         NEW.user_id
     FROM public.thread_follows AS tf

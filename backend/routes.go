@@ -646,9 +646,15 @@ func createThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if input.Notify {
+
+		id, err := uuid.Parse(thread.UserID)
+		if err != nil {
+			fmt.Println("Invalid UUID:", err)
+			return
+		}
 		err = FollowThread(
 			r.Context(),
-			thread.UserID,
+			id,
 			thread.ID,
 		)
 
@@ -1430,21 +1436,21 @@ func createReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// err = NotifyThreadFollowers(
-	// 	r.Context(),
+	if input.Notify {
+		err = FollowThread(
+			r.Context(),
+			user.ID,
+			threadID,
+		)
 
-	// 	reply.ThreadID,
-	// 	reply.ID,
-	// 	user.ID,
-	// )
-
-	// if err != nil {
-	// 	logger.Error(
-	// 		"Failed to notify thread followers",
-	// 		"error", err,
-	// 		"thread_id", reply.ThreadID,
-	// 	)
-	// }
+		if err != nil {
+			logger.Error(
+				"Failed to follow thread",
+				"error", err,
+				"thread_id", threadID,
+			)
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 

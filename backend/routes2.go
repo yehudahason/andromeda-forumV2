@@ -354,7 +354,7 @@ func NotifyThreadFollowers(
 
 func FollowThread(
 	ctx context.Context,
-	userID string,
+	userID uuid.UUID,
 	threadID int64,
 ) error {
 	const query = `

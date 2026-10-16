@@ -129,7 +129,7 @@ export default function PostComposer({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showImagePrompt, setShowImagePrompt] = useState(false);
   const [title, setTitle] = useState(post ? post.title : "");
-  const [notify, setNotify] = useState(false);
+  const [notify, setNotify] = useState(true);
   const [bold, setBold] = useState(false);
   const [italic, setItalic] = useState(false);
   const [underline, setUnderline] = useState(false);
@@ -656,21 +656,20 @@ export default function PostComposer({
             />
 
             <span
-              className="
-                  absolute
+              className={`absolute
                   left-[2px]
                   top-[2px]
                   h-[18px]
                   w-[18px]
                   rounded-full
-                  bg-white
+                  ${notify ? "bg-red-500" : "bg-white"}
                   transition
                   peer-checked:translate-x-[20px]
-                "
+                `}
             />
           </label>
 
-          <span>שלח התראה על תגובות חדשות</span>
+          <span>{notify ? "שולח" : "לא שולח"} התראה על תגובות חדשות</span>
         </div>
 
         <div className="flex justify-center gap-3 py-[22px]">

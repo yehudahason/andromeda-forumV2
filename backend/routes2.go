@@ -352,6 +352,8 @@ func NotifyThreadFollowers(
 	return err
 }
 
+// Follow thread func
+
 func FollowThread(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -376,6 +378,8 @@ func FollowThread(
 	return err
 }
 
+//UnFollow thread func
+
 func UnfollowThread(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -390,6 +394,8 @@ func UnfollowThread(
 	_, err := db.Exec(ctx, query, userID, threadID)
 	return err
 }
+
+//Follow thread endpoint
 
 func followThread(w http.ResponseWriter, r *http.Request) {
 	threadID, err := strconv.ParseInt(r.PathValue("threadID"), 10, 64)
@@ -421,6 +427,8 @@ func followThread(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// UnFollow thread endpoint
+
 func unfollowThread(w http.ResponseWriter, r *http.Request) {
 	threadID, err := strconv.ParseInt(r.PathValue("threadID"), 10, 64)
 	if err != nil || threadID <= 0 {
@@ -450,6 +458,8 @@ func unfollowThread(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// isFollow Thread endpoint
 
 func getThreadFollow(w http.ResponseWriter, r *http.Request) {
 	threadID, err := strconv.ParseInt(r.PathValue("threadID"), 10, 64)
@@ -492,6 +502,7 @@ func getThreadFollow(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// IsThread Followed func
 func IsThreadFollowed(
 	ctx context.Context,
 	userID uuid.UUID,

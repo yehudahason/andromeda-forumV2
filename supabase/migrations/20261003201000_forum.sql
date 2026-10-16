@@ -195,6 +195,7 @@ CREATE TABLE threads (
   CONSTRAINT threads_content_length_check CHECK (char_length(content) BETWEEN 1 AND 100000)
 );
 
+-- Threads that has been read
 CREATE TABLE thread_reads (
     user_id UUID NOT NULL
         REFERENCES public.profiles(id)
@@ -230,7 +231,7 @@ CREATE TABLE replies (
   CONSTRAINT replies_post_length_check CHECK (char_length(post) BETWEEN 1 AND 100000)
 );
 
-
+-- notification for followed threads  and private messages
 CREATE TABLE public.notifications (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
@@ -290,6 +291,7 @@ CREATE UNIQUE INDEX notifications_unique_message_idx
 ON public.notifications (user_id, message_id)
 WHERE type = 'private_message';
 
+--list of followed threads
 CREATE TABLE public.thread_follows (
     user_id UUID NOT NULL
         REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -306,7 +308,7 @@ CREATE TABLE public.thread_follows (
 CREATE INDEX thread_follows_thread_idx
 ON public.thread_follows (thread_id);
 
-
+  -- Notify all followers except the reply author
 CREATE OR REPLACE FUNCTION public.notify_thread_followers()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -352,35 +354,6 @@ AFTER INSERT ON public.replies
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_thread_followers();
 
--- CREATE OR REPLACE FUNCTION public.notify_private_message()
--- RETURNS TRIGGER
--- LANGUAGE plpgsql
--- SECURITY DEFINER
--- SET search_path = ''
--- AS $$
--- BEGIN
---     INSERT INTO public.notifications (
---         user_id,
---         type,
---         message_id,
---         actor_id
---     )
---     VALUES (
---         NEW.recipient_id,
---         'private_message',
---         NEW.id,
---         NEW.sender_id
---     )
---     ON CONFLICT DO NOTHING;
-
---     RETURN NEW;
--- END;
--- $$;
-
--- CREATE TRIGGER private_messages_notify
--- AFTER INSERT ON public.private_messages
--- FOR EACH ROW
--- EXECUTE FUNCTION public.notify_private_message();
 
 -- =========================================================
 -- INDEXES

@@ -80,7 +80,7 @@ export default function NewPosts() {
         {latestPosts.map((item) => (
           <li
             onClick={() =>
-              navigate(`/forum/${item.forum_id}/${item.thread_id}/#${item.id}`)
+              navigate(`/forum/${item.forum_id}/${item.thread_id}`)
             }
             key={item.id}
             className="cursor-pointer rounded-md bg-[#555] sm:px-7 p-1 py-5 text-white flex gap-4"

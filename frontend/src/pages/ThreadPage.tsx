@@ -91,12 +91,14 @@ export default function ThreadPage() {
     <section className="mx-auto max-w-[1280px]">
       <div className="flex my-8 text-white justify-between items-center w-full">
         <h3 className="text-2xl font-semibold">{tdetails?.forum_name}</h3>
-        <Link
-          className="bg-sky-400 text-black py-2 px-4 rounded-lg"
-          to={`/post/${f}/${t}`}
-        >
-          שלח תגובה
-        </Link>
+        <div className="flex gap-5 items-center">
+          <Link
+            className="bg-sky-400 text-black py-2 px-4 rounded-lg"
+            to={`/post/${f}/${t}`}
+          >
+            שלח תגובה
+          </Link>
+        </div>
       </div>
       <Replies
         tid={t ?? "9"}

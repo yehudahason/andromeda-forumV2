@@ -7,6 +7,7 @@ import type { ReplyType } from "../types";
 import type { ThreadDetails } from "../types";
 import { deleteReply } from "../fetchMethods/deleteReply";
 import { useQueryClient } from "@tanstack/react-query";
+import FollowButton from "./FollowButton";
 
 type RepliesProp = {
   replies: ReplyType[];
@@ -175,9 +176,7 @@ export default function Replies({
                     <button className="py-2 px-4 bg-none rounded-lg">
                       שתף
                     </button>
-                    <button className="py-2 px-4 bg-gray-300 text-black rounded-lg">
-                      עקוב
-                    </button>
+                    {tid && <FollowButton threadID={Number(tid)} />}
                   </div>
                 </div>
               </div>

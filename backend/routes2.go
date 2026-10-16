@@ -375,3 +375,145 @@ func FollowThread(
 
 	return err
 }
+
+func UnfollowThread(
+	ctx context.Context,
+	userID uuid.UUID,
+	threadID int64,
+) error {
+	const query = `
+        DELETE FROM public.thread_follows
+        WHERE user_id = $1
+          AND thread_id = $2
+    `
+
+	_, err := db.Exec(ctx, query, userID, threadID)
+	return err
+}
+
+func followThread(w http.ResponseWriter, r *http.Request) {
+	threadID, err := strconv.ParseInt(r.PathValue("threadID"), 10, 64)
+	if err != nil || threadID <= 0 {
+		http.Error(w, "Invalid thread ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := getUserID(r)
+	if err != nil {
+		if errors.Is(err, ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		logger.Error("followThread authentication failed", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	err = FollowThread(r.Context(), userID.ID, threadID)
+	if err != nil {
+		logger.Error("followThread database error", "error", err)
+		http.Error(w, "Failed to follow thread", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func unfollowThread(w http.ResponseWriter, r *http.Request) {
+	threadID, err := strconv.ParseInt(r.PathValue("threadID"), 10, 64)
+	if err != nil || threadID <= 0 {
+		http.Error(w, "Invalid thread ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := getUserID(r)
+	if err != nil {
+		if errors.Is(err, ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		logger.Error("unfollowThread authentication failed", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	err = UnfollowThread(r.Context(), userID.ID, threadID)
+	if err != nil {
+		logger.Error("unfollowThread database error", "error", err)
+		http.Error(w, "Failed to unfollow thread", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func getThreadFollow(w http.ResponseWriter, r *http.Request) {
+	threadID, err := strconv.ParseInt(r.PathValue("threadID"), 10, 64)
+	if err != nil || threadID <= 0 {
+		http.Error(w, "Invalid thread ID", http.StatusBadRequest)
+		return
+	}
+
+	// Authenticate user
+	user, err := getUserID(r)
+	if err != nil {
+		if errors.Is(err, ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		logger.Error("getThreadFollow authentication failed", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if user follows thread
+	following, err := IsThreadFollowed(r.Context(), user.ID, threadID)
+	if err != nil {
+		logger.Error("getThreadFollow database error", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Return JSON response
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(struct {
+		Following bool `json:"following"`
+	}{
+		Following: following,
+	}); err != nil {
+		logger.Error("getThreadFollow JSON encoding error", "error", err)
+	}
+}
+
+func IsThreadFollowed(
+	ctx context.Context,
+	userID uuid.UUID,
+	threadID int64,
+) (bool, error) {
+	const query = `
+        SELECT EXISTS (
+            SELECT 1
+            FROM public.thread_follows
+            WHERE user_id = $1
+              AND thread_id = $2
+        )
+    `
+
+	var following bool
+
+	err := db.QueryRow(
+		ctx,
+		query,
+		userID,
+		threadID,
+	).Scan(&following)
+
+	return following, err
+}

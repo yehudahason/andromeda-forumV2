@@ -10,6 +10,7 @@ import Link from "@tiptap/extension-link";
 import CodeBlock from "@tiptap/extension-code-block";
 import Image from "@tiptap/extension-image";
 const EmojiPicker = React.lazy(() => import("emoji-picker-react"));
+import { unFollowThread } from "../fetchMethods/unFollowThread";
 
 export type Post = {
   title?: string;
@@ -23,6 +24,7 @@ type PostComposerProps = {
   submitText?: string;
   // initialContent?: string;
   disabled: boolean;
+  threadID?: number;
 };
 
 type BlockMode = "normal" | "h2" | "h3";
@@ -125,6 +127,7 @@ export default function PostComposer({
   onSubmit,
   submitText,
   disabled = false,
+  threadID,
 }: PostComposerProps) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showImagePrompt, setShowImagePrompt] = useState(false);
@@ -186,11 +189,6 @@ export default function PostComposer({
 
       Underline,
 
-      // Link.configure({
-      //   openOnClick: false,
-      //   autolink: false,
-      //   linkOnPaste: true,
-      // }),
       Link.configure({
         openOnClick: false,
         autolink: false,
@@ -237,14 +235,6 @@ export default function PostComposer({
     }
     init();
   }, [editor, post]);
-
-  // useEffect(() => {
-  //   if (editor && initialContent !== editor.getHTML()) {
-  //     editor.commands.setContent(initialContent, {
-  //       emitUpdate: false,
-  //     });
-  //   }
-  // }, [editor, initialContent]);
 
   const executeStyle = useCallback(
     (style: "bold" | "italic" | "underline") => {
@@ -382,6 +372,18 @@ export default function PostComposer({
     setDirection((current) => (current === "rtl" ? "ltr" : "rtl"));
   }, [editor]);
 
+  const unFollow = useCallback(
+    async (thread: number | null) => {
+      if (!thread || notify) return;
+      try {
+        const res = await unFollowThread(thread);
+        console.log(res);
+      } catch (e) {
+        if (e instanceof Error) console.log(e.message);
+      }
+    },
+    [notify],
+  );
   const handleSubmit = useCallback(
     (e: React.SubmitEvent<HTMLFormElement>) => {
       e.preventDefault();
@@ -396,13 +398,25 @@ export default function PostComposer({
       </div>
     `;
 
+      //UnFollow thread if not notify
+      if (!isThread && !notify) unFollow(threadID ?? null);
       onSubmit({
         title: isThread ? title : undefined,
         content: html,
         notify,
       });
     },
-    [disabled, editor, isThread, notify, onSubmit, title, direction],
+    [
+      threadID,
+      unFollow,
+      disabled,
+      editor,
+      isThread,
+      notify,
+      onSubmit,
+      title,
+      direction,
+    ],
   );
 
   return (

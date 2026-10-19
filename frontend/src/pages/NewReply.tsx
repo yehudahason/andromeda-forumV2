@@ -43,9 +43,11 @@ export default function NewReply() {
     return <AfterPost success={false} postLink="" />;
   }
 
+  if (!f || !t) return;
   return (
     <PostComposer
       mode="reply"
+      threadID={+t}
       disabled={createReplyMutation.isPending}
       onSubmit={(item: Post) => {
         if (createReplyMutation.isPending) return;

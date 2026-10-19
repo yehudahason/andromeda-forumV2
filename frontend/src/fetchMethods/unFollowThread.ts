@@ -19,4 +19,6 @@ export async function unFollowThread(threadID: number) {
   if (!response.ok) {
     throw new Error("Failed to unfollow thread");
   }
+
+  return "unfollow thread successfully";
 }

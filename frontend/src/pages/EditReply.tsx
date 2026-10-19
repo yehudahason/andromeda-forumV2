@@ -83,9 +83,10 @@ export default function EditReply() {
   if (updateReplyMutation.isError) {
     return <AfterPost success={false} postLink="" />;
   }
-
+  if (!t) return;
   return (
     <PostComposer
+      threadID={+t}
       post={{
         title: "",
         content: reply.post,

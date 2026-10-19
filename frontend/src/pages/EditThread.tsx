@@ -60,9 +60,10 @@ export default function EditThread() {
   if (isLoading) {
     return <h3 className="text-amber-300 text-center py-8">המתן..</h3>;
   }
-
+  if (!t) return;
   return (
     <PostComposer
+      threadID={+t}
       post={{
         title: tdetails?.title,
         content: tdetails?.content,

@@ -814,6 +814,20 @@ func updateThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if input.Notify {
+
+		err = FollowThread(r.Context(), user.ID, thread.ID)
+	} else {
+		err = UnfollowThread(r.Context(), user.ID, thread.ID)
+	}
+	if err != nil {
+		logger.Error(
+			"Failed to follow thread",
+			"error", err,
+			"thread_id", thread.ID,
+		)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(thread); err != nil {
@@ -875,9 +889,10 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var reply struct {
-		ID     uuid.UUID `json:"id"`
-		Post   string    `json:"post"`
-		Notify bool      `json:"notify"`
+		ID       uuid.UUID `json:"id"`
+		Post     string    `json:"post"`
+		Notify   bool      `json:"notify"`
+		ThreadID int64     `json:"thread_id"`
 	}
 
 	err = db.QueryRow(
@@ -913,6 +928,7 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 	)
 	SELECT
 		id,
+		thread_id,
 		post,
 		notify
 	FROM updated_reply
@@ -923,6 +939,7 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 		user.ID,
 	).Scan(
 		&reply.ID,
+		&reply.ThreadID,
 		&reply.Post,
 		&reply.Notify,
 	)
@@ -942,6 +959,21 @@ func updateReply(w http.ResponseWriter, r *http.Request) {
 
 		http.Error(w, "Failed to update reply", http.StatusInternalServerError)
 		return
+	}
+
+	if input.Notify {
+		err = FollowThread(r.Context(), user.ID, reply.ThreadID)
+	} else {
+		err = UnfollowThread(r.Context(), user.ID, reply.ThreadID)
+	}
+
+	if err != nil {
+		logger.Error(
+			"Failed to follow thread",
+			"error", err,
+			"thread_id", reply.ThreadID,
+			"user_id", user.ID,
+		)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

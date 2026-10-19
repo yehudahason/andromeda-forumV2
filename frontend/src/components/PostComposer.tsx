@@ -150,7 +150,9 @@ export default function PostComposer({
     from: number;
     to: number;
   } | null>(null);
+  //Base URL
   const baseUrl = import.meta.env.BASE_URL;
+  // Is It Thread
   const isThread = mode === "thread";
   const updateToolbarStates = useCallback((currentEditor: Editor) => {
     if (!currentEditor) return;
@@ -372,8 +374,10 @@ export default function PostComposer({
     setDirection((current) => (current === "rtl" ? "ltr" : "rtl"));
   }, [editor]);
 
+  //UnFollow Thread function
   const unFollow = useCallback(
     async (thread: number | null) => {
+      //Return if no thread number or notify true
       if (!thread || notify) return;
       try {
         const res = await unFollowThread(thread);
@@ -390,6 +394,7 @@ export default function PostComposer({
       if (!editor) return;
       if (disabled) return;
 
+      //LTR or RTL wrapper
       const html = `
       <div dir="${direction}" style="text-align:${
         direction === "rtl" ? "right" : "left"

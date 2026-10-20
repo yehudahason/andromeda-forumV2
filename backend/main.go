@@ -134,6 +134,8 @@ func main() {
 		"POST /api/forums/{forumID}/threads/{threadID}/replies",
 		createReply,
 	)
+	//Private messages endpionts
+	registerPrivateRoutes(mux)
 
 	handler := recoverMiddleware(
 		loggerMiddleware(

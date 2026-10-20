@@ -276,6 +276,209 @@ CREATE TABLE public.notifications (
     )
 );
 
+CREATE TABLE public.private_threads (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    title TEXT,
+
+    created_by UUID
+        REFERENCES auth.users(id)
+        ON DELETE SET NULL,
+
+    last_message_at TIMESTAMPTZ,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.private_thread_participants (
+    thread_id BIGINT NOT NULL
+        REFERENCES public.private_threads(id)
+        ON DELETE CASCADE,
+
+    user_id UUID NOT NULL
+        REFERENCES auth.users(id)
+        ON DELETE CASCADE,
+
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    last_read_at TIMESTAMPTZ,
+
+    PRIMARY KEY (thread_id, user_id)
+);
+
+CREATE TABLE public.private_messages (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    thread_id BIGINT NOT NULL
+        REFERENCES public.private_threads(id)
+        ON DELETE CASCADE,
+
+    sender_id UUID
+        REFERENCES auth.users(id)
+        ON DELETE SET NULL,
+
+    content TEXT NOT NULL
+        CHECK (
+            char_length(btrim(content)) BETWEEN 1 AND 100000
+        ),
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+
+
+CREATE OR REPLACE FUNCTION public.notify_private_message_participants()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    INSERT INTO public.notifications (
+        user_id,
+        type,
+        message_id,
+        actor_id
+    )
+    SELECT
+        p.user_id,
+        'private_message',
+        NEW.id,
+        NEW.sender_id
+    FROM public.private_thread_participants AS p
+    WHERE p.thread_id = NEW.thread_id
+      AND p.user_id IS DISTINCT FROM NEW.sender_id;
+
+    RETURN NULL;
+END;
+$$;
+
+
+CREATE TRIGGER private_messages_notify_participants
+AFTER INSERT ON public.private_messages
+FOR EACH ROW
+EXECUTE FUNCTION public.notify_private_message_participants();
+
+
+CREATE OR REPLACE FUNCTION public.private_set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+    NEW.updated_at := clock_timestamp();
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER private_threads_set_updated_at
+BEFORE UPDATE ON public.private_threads
+FOR EACH ROW
+EXECUTE FUNCTION public.private_set_updated_at();
+
+CREATE TRIGGER private_messages_set_updated_at
+BEFORE UPDATE ON public.private_messages
+FOR EACH ROW
+EXECUTE FUNCTION public.private_set_updated_at();
+
+
+CREATE OR REPLACE FUNCTION public.private_messages_after_insert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+    UPDATE public.private_threads AS t
+    SET last_message_at = GREATEST(
+        t.last_message_at,
+        NEW.created_at
+    )
+    WHERE t.id = NEW.thread_id;
+
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER private_messages_after_insert
+AFTER INSERT ON public.private_messages
+FOR EACH ROW
+EXECUTE FUNCTION public.private_messages_after_insert();
+
+
+ALTER TABLE public.notifications
+ADD CONSTRAINT notifications_message_id_fk
+FOREIGN KEY (message_id)
+REFERENCES public.private_messages(id)
+ON DELETE CASCADE;
+
+
+-- Find conversations belonging to a user
+CREATE INDEX idx_private_participants_user
+ON public.private_thread_participants (user_id, thread_id);
+
+-- Fetch messages efficiently with pagination
+CREATE INDEX idx_private_messages_thread
+ON public.private_messages (
+    thread_id,
+    created_at DESC,
+    id DESC
+);
+
+-- Sort conversations by recent activity
+CREATE INDEX idx_private_threads_last_message
+ON public.private_threads (
+    last_message_at DESC NULLS LAST
+);
+
+CREATE OR REPLACE FUNCTION public.private_messages_after_delete()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+    UPDATE public.private_threads AS t
+    SET last_message_at = (
+        SELECT MAX(m.created_at)
+        FROM public.private_messages AS m
+        WHERE m.thread_id = OLD.thread_id
+    )
+    WHERE t.id = OLD.thread_id;
+
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER private_messages_after_delete
+AFTER DELETE ON public.private_messages
+FOR EACH ROW
+EXECUTE FUNCTION public.private_messages_after_delete();
+
+
+CREATE OR REPLACE FUNCTION public.private_messages_protect_fields()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+    IF NEW.thread_id IS DISTINCT FROM OLD.thread_id
+       OR NEW.sender_id IS DISTINCT FROM OLD.sender_id
+       OR NEW.created_at IS DISTINCT FROM OLD.created_at
+       OR NEW.id IS DISTINCT FROM OLD.id
+    THEN
+        RAISE EXCEPTION 'Cannot modify protected message fields';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER private_messages_protect_fields
+BEFORE UPDATE ON public.private_messages
+FOR EACH ROW
+EXECUTE FUNCTION public.private_messages_protect_fields();
 CREATE INDEX notifications_user_created_idx
 ON public.notifications (user_id, created_at DESC);
 

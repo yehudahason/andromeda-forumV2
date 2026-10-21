@@ -1,3 +1,11 @@
+-- REVIEWED/DOCUMENTED COPY: original upload remains untouched.
+-- Two scoped behavioral fixes versus the original migration:
+--   (1) Enforce private-message sender membership/non-NULL at INSERT time.
+--   (2) Allow private_messages.sender_id to become NULL on auth.users DELETE.
+-- DO NOT run a complete CREATE TABLE migration again on an existing database.
+-- See forum_trigger_review.md and private_trigger_patch_existing.sql.
+-- Static review only: no live PostgreSQL instance was available for runtime tests.
+
 -- Forum schema - full UP migration
 -- Supabase version: auth.users handles authentication; public.profiles preserves forum identity; public.forum_user_stats tracks active-user counts.
 
@@ -38,6 +46,7 @@ CREATE TABLE public.forum_user_stats (
     FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE
 );
 
+-- FUNCTION: Initialize per-account forum counters after auth.users insertion; ignore existing entries.
 CREATE OR REPLACE FUNCTION public.forum_create_user_stats()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -53,12 +62,14 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (AFTER INSERT on auth.users): Create forum_user_stats for the new auth user.
 CREATE TRIGGER forum_auth_user_created
 AFTER INSERT
 ON auth.users
 FOR EACH ROW
 EXECUTE FUNCTION public.forum_create_user_stats();
 
+-- FUNCTION: Create/upsert a public profile from auth.users metadata, retaining identity across later auth deletion.
 CREATE OR REPLACE FUNCTION public.create_user_profile()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -107,6 +118,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (AFTER INSERT on auth.users): Create the persistent public profile for the new auth user.
 CREATE TRIGGER on_auth_user_created
 AFTER INSERT
 ON auth.users
@@ -150,6 +162,7 @@ ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE forums (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  --   for sort order in frontend
   sort_order BIGINT NOT NULL,
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
@@ -250,7 +263,7 @@ CREATE TABLE public.notifications (
         REFERENCES public.replies(id) ON DELETE CASCADE,
 
 
-    message_id BIGINT,
+    message_id BIGINT ,
 
     actor_id UUID
         REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -329,8 +342,47 @@ CREATE TABLE public.private_messages (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.notifications
+ADD CONSTRAINT notifications_message_id_fk
+FOREIGN KEY (message_id)
+REFERENCES public.private_messages(id)
+ON DELETE CASCADE;
 
+-- Validates every new message at the database boundary.
+-- The Go API must still authenticate the caller and authorize their actions:
+-- this trigger checks sender/participant consistency, not caller identity.
+-- Participants must be inserted BEFORE the first message in the same transaction.
+-- FUNCTION: Require a non-NULL private-message sender who already belongs to the conversation.
+CREATE OR REPLACE FUNCTION public.private_messages_validate_insert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+    IF NEW.sender_id IS NULL THEN
+        RAISE EXCEPTION 'private message sender_id cannot be NULL';
+    END IF;
 
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.private_thread_participants AS p
+        WHERE p.thread_id = NEW.thread_id
+          AND p.user_id = NEW.sender_id
+    ) THEN
+        RAISE EXCEPTION 'private message sender must be a thread participant';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- TRIGGER (BEFORE INSERT on public.private_messages): Reject anonymous/new messages from nonparticipants.
+CREATE TRIGGER private_messages_validate_insert
+BEFORE INSERT ON public.private_messages
+FOR EACH ROW
+EXECUTE FUNCTION public.private_messages_validate_insert();
+
+-- FUNCTION: After a private message insert, create one notification for each participant other than the sender.
 CREATE OR REPLACE FUNCTION public.notify_private_message_participants()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -358,12 +410,14 @@ END;
 $$;
 
 
+-- TRIGGER (AFTER INSERT on public.private_messages): Notify all other participants; the sender is excluded.
 CREATE TRIGGER private_messages_notify_participants
 AFTER INSERT ON public.private_messages
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_private_message_participants();
 
 
+-- FUNCTION: Refresh updated_at on private threads and messages whenever they are updated.
 CREATE OR REPLACE FUNCTION public.private_set_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -374,17 +428,20 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+-- TRIGGER (BEFORE UPDATE on public.private_threads): Refresh private thread updated_at.
 CREATE TRIGGER private_threads_set_updated_at
 BEFORE UPDATE ON public.private_threads
 FOR EACH ROW
 EXECUTE FUNCTION public.private_set_updated_at();
 
+-- TRIGGER (BEFORE UPDATE on public.private_messages): Refresh private message updated_at.
 CREATE TRIGGER private_messages_set_updated_at
 BEFORE UPDATE ON public.private_messages
 FOR EACH ROW
 EXECUTE FUNCTION public.private_set_updated_at();
 
 
+-- FUNCTION: Move private_threads.last_message_at forward to the inserted message timestamp.
 CREATE OR REPLACE FUNCTION public.private_messages_after_insert()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -402,17 +459,14 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (AFTER INSERT on public.private_messages): Track newest private message timestamp in its conversation.
 CREATE TRIGGER private_messages_after_insert
 AFTER INSERT ON public.private_messages
 FOR EACH ROW
 EXECUTE FUNCTION public.private_messages_after_insert();
 
 
-ALTER TABLE public.notifications
-ADD CONSTRAINT notifications_message_id_fk
-FOREIGN KEY (message_id)
-REFERENCES public.private_messages(id)
-ON DELETE CASCADE;
+
 
 
 -- Find conversations belonging to a user
@@ -433,6 +487,7 @@ ON public.private_threads (
     last_message_at DESC NULLS LAST
 );
 
+-- FUNCTION: Recalculate private_threads.last_message_at when a message is deleted, including deletion of the latest message.
 CREATE OR REPLACE FUNCTION public.private_messages_after_delete()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -451,20 +506,30 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (AFTER DELETE on public.private_messages): Recompute newest private message timestamp after deletion.
 CREATE TRIGGER private_messages_after_delete
 AFTER DELETE ON public.private_messages
 FOR EACH ROW
 EXECUTE FUNCTION public.private_messages_after_delete();
 
 
+-- FUNCTION: Forbid private message identity/parent/timestamp changes; permit sender_id becoming NULL on auth-user deletion.
 CREATE OR REPLACE FUNCTION public.private_messages_protect_fields()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SET search_path = ''
 AS $$
 BEGIN
+    -- sender_id can become NULL when auth.users is deleted because
+    -- private_messages.sender_id has ON DELETE SET NULL. Reassigning a
+    -- message to another non-NULL sender remains forbidden.
+    -- Limit direct UPDATE privileges: this exception also permits an
+    -- explicit sender_id=NULL update by a sufficiently privileged role.
     IF NEW.thread_id IS DISTINCT FROM OLD.thread_id
-       OR NEW.sender_id IS DISTINCT FROM OLD.sender_id
+       OR (
+            NEW.sender_id IS DISTINCT FROM OLD.sender_id
+            AND NEW.sender_id IS NOT NULL
+          )
        OR NEW.created_at IS DISTINCT FROM OLD.created_at
        OR NEW.id IS DISTINCT FROM OLD.id
     THEN
@@ -475,6 +540,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (BEFORE UPDATE on public.private_messages): Preserve immutable fields while allowing sender removal via auth FK.
 CREATE TRIGGER private_messages_protect_fields
 BEFORE UPDATE ON public.private_messages
 FOR EACH ROW
@@ -512,6 +578,7 @@ CREATE INDEX thread_follows_thread_idx
 ON public.thread_follows (thread_id);
 
   -- Notify all followers except the reply author
+-- FUNCTION: Create a notification for every thread follower except the reply author; store a 14-replies/page estimate.
 CREATE OR REPLACE FUNCTION public.notify_thread_followers()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -552,6 +619,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (AFTER INSERT on public.replies): Create thread follower notifications.
 CREATE TRIGGER replies_notify_followers
 AFTER INSERT ON public.replies
 FOR EACH ROW
@@ -599,6 +667,7 @@ CREATE INDEX idx_replies_thread_created_at ON replies (thread_id, created_at DES
 -- Prevent callers from seeding trigger-maintained aggregate state.
 -- =========================================================
 
+-- FUNCTION: Reset forum aggregate columns to their initial values on insert.
 CREATE OR REPLACE FUNCTION forum_prepare_forum_insert()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -613,6 +682,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (BEFORE INSERT on forums): Initialize zero aggregate state for new forums.
 CREATE TRIGGER forums_prepare_insert
 BEFORE INSERT
 ON forums
@@ -623,6 +693,7 @@ EXECUTE FUNCTION forum_prepare_forum_insert();
 -- GENERIC updated_at TRIGGER FUNCTION
 -- =========================================================
 
+-- FUNCTION: Maintain updated_at on forum profiles, categories, threads, and replies.
 CREATE OR REPLACE FUNCTION forum_set_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -633,30 +704,35 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (BEFORE UPDATE on public.profiles): Refresh public profile updated_at.
 CREATE TRIGGER profiles_set_updated_at
 BEFORE UPDATE
 ON public.profiles
 FOR EACH ROW
 EXECUTE FUNCTION forum_set_updated_at();
 
+-- TRIGGER (BEFORE UPDATE on forums): Refresh forum updated_at.
 CREATE TRIGGER forums_set_updated_at
 BEFORE UPDATE
 ON forums
 FOR EACH ROW
 EXECUTE FUNCTION forum_set_updated_at();
 
+-- TRIGGER (BEFORE UPDATE on threads): Refresh thread updated_at.
 CREATE TRIGGER threads_set_updated_at
 BEFORE UPDATE
 ON threads
 FOR EACH ROW
 EXECUTE FUNCTION forum_set_updated_at();
 
+-- TRIGGER (BEFORE UPDATE on replies): Refresh reply updated_at.
 CREATE TRIGGER replies_set_updated_at
 BEFORE UPDATE
 ON replies
 FOR EACH ROW
 EXECUTE FUNCTION forum_set_updated_at();
 
+-- FUNCTION: Require active thread author; initialize reply count and last-post metadata.
 CREATE OR REPLACE FUNCTION forum_prepare_thread_insert()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -688,6 +764,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (BEFORE INSERT on threads): Check thread author and initialize aggregate state.
 CREATE TRIGGER threads_prepare_insert
 BEFORE INSERT
 ON threads
@@ -698,6 +775,7 @@ EXECUTE FUNCTION forum_prepare_thread_insert();
 -- IMMUTABLE RELATION / CREATION FIELDS
 -- =========================================================
 
+-- FUNCTION: Prevent reparenting/reassigning threads and changes to their creation timestamp; allow author SET NULL on profile deletion.
 CREATE OR REPLACE FUNCTION forum_prevent_thread_relation_changes()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -717,6 +795,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (BEFORE UPDATE on threads): Forbid editing thread parent, author or created_at (except author SET NULL).
 CREATE TRIGGER threads_prevent_relation_changes
 BEFORE UPDATE OF
     forum_id,
@@ -726,6 +805,7 @@ ON threads
 FOR EACH ROW
 EXECUTE FUNCTION forum_prevent_thread_relation_changes();
 
+-- FUNCTION: Prevent reparenting/reassigning replies and changes to their creation timestamp; allow author SET NULL on profile deletion.
 CREATE OR REPLACE FUNCTION forum_prevent_reply_relation_changes()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -745,6 +825,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (BEFORE UPDATE on replies): Forbid editing reply parent, author or created_at (except author SET NULL).
 CREATE TRIGGER replies_prevent_relation_changes
 BEFORE UPDATE OF
     thread_id,
@@ -759,6 +840,7 @@ EXECUTE FUNCTION forum_prevent_reply_relation_changes();
 -- New replies must belong to an active auth user. Historical profile IDs remain after auth-user deletion.
 -- =========================================================
 
+-- FUNCTION: Require every newly inserted reply to reference an active forum profile.
 CREATE OR REPLACE FUNCTION forum_validate_reply_insert()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -781,6 +863,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (BEFORE INSERT on replies): Require a valid, active author for new replies.
 CREATE TRIGGER replies_validate_insert
 BEFORE INSERT
 ON replies
@@ -794,6 +877,7 @@ EXECUTE FUNCTION forum_validate_reply_insert();
 -- is allowed so ON DELETE SET NULL can preserve content if a profile row is explicitly deleted.
 -- =========================================================
 
+-- FUNCTION: Reject direct updates of forum cached counts/latest-post metadata; allow nested trigger maintenance.
 CREATE OR REPLACE FUNCTION forum_guard_forum_denormalized_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -818,6 +902,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (BEFORE UPDATE on forums): Reject client modifications to cached forum aggregates.
 CREATE TRIGGER forums_guard_denormalized_update
 BEFORE UPDATE OF
     messages_count,
@@ -829,6 +914,7 @@ ON forums
 FOR EACH ROW
 EXECUTE FUNCTION forum_guard_forum_denormalized_update();
 
+-- FUNCTION: Reject direct updates of thread cached counts/latest-post metadata; allow nested trigger maintenance.
 CREATE OR REPLACE FUNCTION forum_guard_thread_denormalized_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -852,6 +938,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (BEFORE UPDATE on threads): Reject client modifications to cached thread aggregates.
 CREATE TRIGGER threads_guard_denormalized_update
 BEFORE UPDATE OF
     messages_count,
@@ -866,6 +953,7 @@ EXECUTE FUNCTION forum_guard_thread_denormalized_update();
 -- THREAD AFTER INSERT
 -- =========================================================
 
+-- FUNCTION: Update forum latest-post metadata and total messages; increment author message count.
 CREATE OR REPLACE FUNCTION forum_after_thread_insert()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -905,6 +993,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (AFTER INSERT on threads): Update parent forum and author totals.
 CREATE TRIGGER threads_after_insert
 AFTER INSERT
 ON threads
@@ -916,6 +1005,7 @@ EXECUTE FUNCTION forum_after_thread_insert();
 -- Keep denormalized thread/forum titles synchronized.
 -- =========================================================
 
+-- FUNCTION: Keep cached thread last_post_title synchronized with title during title updates.
 CREATE OR REPLACE FUNCTION forum_sync_thread_title()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -926,6 +1016,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (BEFORE UPDATE on threads): Mirror thread title into its cached last-post title.
 CREATE TRIGGER threads_sync_title
 BEFORE UPDATE OF title
 ON threads
@@ -933,6 +1024,7 @@ FOR EACH ROW
 WHEN (NEW.title IS DISTINCT FROM OLD.title)
 EXECUTE FUNCTION forum_sync_thread_title();
 
+-- FUNCTION: Propagate a thread title change into the forum latest-post title when applicable.
 CREATE OR REPLACE FUNCTION forum_after_thread_title_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -946,6 +1038,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (AFTER UPDATE on threads): Refresh forum cached title when this thread was most recently active.
 CREATE TRIGGER threads_after_title_update
 AFTER UPDATE OF title
 ON threads
@@ -953,6 +1046,7 @@ FOR EACH ROW
 WHEN (NEW.title IS DISTINCT FROM OLD.title)
 EXECUTE FUNCTION forum_after_thread_title_update();
 
+-- FUNCTION: Increment thread/forum reply counters and update latest-post metadata and author stats.
 CREATE OR REPLACE FUNCTION forum_after_reply_insert()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -1022,12 +1116,14 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (AFTER INSERT on replies): Update thread/forum latest-post data and counts.
 CREATE TRIGGER replies_after_insert
 AFTER INSERT
 ON replies
 FOR EACH ROW
 EXECUTE FUNCTION forum_after_reply_insert();
 
+-- FUNCTION: For affected surviving threads/forums, recalculate counters/latest-post metadata and decrement author stats.
 CREATE OR REPLACE FUNCTION forum_after_reply_delete()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -1157,6 +1253,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (AFTER DELETE (statement) on replies): Recompute affected thread/forum data using the deleted_replies transition table.
 CREATE TRIGGER replies_after_delete
 AFTER DELETE
 ON replies
@@ -1171,6 +1268,7 @@ EXECUTE FUNCTION forum_after_reply_delete();
 -- is simply skipped.
 -- =========================================================
 
+-- FUNCTION: For affected surviving forums, recalculate totals/latest-post metadata and decrement thread-author stats.
 CREATE OR REPLACE FUNCTION forum_after_thread_delete()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -1233,6 +1331,7 @@ BEGIN
 END;
 $$;
 
+-- TRIGGER (AFTER DELETE (statement) on threads): Recompute affected forum data using the deleted_threads transition table.
 CREATE TRIGGER threads_after_delete
 AFTER DELETE
 ON threads
@@ -1280,5 +1379,89 @@ COMMENT ON COLUMN replies.notify IS 'Whether the reply author requested notifica
 COMMENT ON COLUMN public.forum_user_stats.replies_count IS 'Total forum messages currently authored by this user: opened threads + replies';
 
 -- =========================================================
+
+
+-- =========================================================
+-- PRIVATE MESSAGING / NOTIFICATION DATABASE DOCUMENTATION
+-- These COMMENT statements are stored in PostgreSQL metadata and
+-- appear in introspection tools (including psql and schema browsers).
+-- =========================================================
+
+COMMENT ON TABLE public.private_threads IS 'Private conversations. last_message_at is maintained by insert/delete message triggers; NULL indicates no messages.';
+COMMENT ON COLUMN public.private_threads.created_by IS 'Authenticated user who created the conversation; nullable after auth account deletion.';
+COMMENT ON COLUMN public.private_threads.last_message_at IS 'Newest remaining message created_at, or NULL if the conversation is empty.';
+COMMENT ON TABLE public.private_thread_participants IS 'Conversation membership and per-user last-read timestamp.';
+COMMENT ON COLUMN public.private_thread_participants.last_read_at IS 'Last private-message timestamp read by this participant; maintained by the Go read endpoint.';
+COMMENT ON TABLE public.private_messages IS 'Messages in private conversations. New messages must have a sender who belongs to the conversation.';
+COMMENT ON COLUMN public.private_messages.sender_id IS 'Auth user who sent the message; set to NULL if that account is deleted.';
+COMMENT ON COLUMN public.private_messages.created_at IS 'Message creation time; ordering affects last_message_at, pagination and unread status.';
+COMMENT ON TABLE public.notifications IS 'Per-user forum reply and private-message notifications; target depends on type.';
+COMMENT ON COLUMN public.notifications.type IS 'thread_reply or private_message; see notifications_target_check.';
+COMMENT ON COLUMN public.notifications.thread_page IS 'Cached page number for forum replies; may become stale if replies are deleted or reordered.';
+COMMENT ON COLUMN public.notifications.reply_id IS 'Forum reply notification target; deleted with its reply.';
+COMMENT ON COLUMN public.notifications.message_id IS 'Private message notification target; deleted with its message.';
+COMMENT ON COLUMN public.notifications.actor_id IS 'Actor who triggered notification; nullable after auth-user deletion.';
+COMMENT ON COLUMN public.notifications.is_read IS 'Notification read state; independent of private_thread_participants.last_read_at.';
+COMMENT ON TABLE public.thread_follows IS 'Explicit forum-thread follow subscriptions, used to generate reply notifications.';
+
+COMMENT ON FUNCTION public.forum_create_user_stats() IS 'Initialize per-account forum counters after auth.users insertion; ignore existing entries.';
+COMMENT ON FUNCTION public.create_user_profile() IS 'Create/upsert a public profile from auth.users metadata, retaining identity across later auth deletion.';
+COMMENT ON FUNCTION public.private_messages_validate_insert() IS 'Require a non-NULL private-message sender who already belongs to the conversation.';
+COMMENT ON FUNCTION public.notify_private_message_participants() IS 'After a private message insert, create one notification for each participant other than the sender.';
+COMMENT ON FUNCTION public.private_set_updated_at() IS 'Refresh updated_at on private threads and messages whenever they are updated.';
+COMMENT ON FUNCTION public.private_messages_after_insert() IS 'Move private_threads.last_message_at forward to the inserted message timestamp.';
+COMMENT ON FUNCTION public.private_messages_after_delete() IS 'Recalculate private_threads.last_message_at when a message is deleted, including deletion of the latest message.';
+COMMENT ON FUNCTION public.private_messages_protect_fields() IS 'Forbid private message identity/parent/timestamp changes; permit sender_id becoming NULL on auth-user deletion.';
+COMMENT ON FUNCTION public.notify_thread_followers() IS 'Create a notification for every thread follower except the reply author; store a 14-replies/page estimate.';
+COMMENT ON FUNCTION forum_prepare_forum_insert() IS 'Reset forum aggregate columns to their initial values on insert.';
+COMMENT ON FUNCTION forum_set_updated_at() IS 'Maintain updated_at on forum profiles, categories, threads, and replies.';
+COMMENT ON FUNCTION forum_prepare_thread_insert() IS 'Require active thread author; initialize reply count and last-post metadata.';
+COMMENT ON FUNCTION forum_prevent_thread_relation_changes() IS 'Prevent reparenting/reassigning threads and changes to their creation timestamp; allow author SET NULL on profile deletion.';
+COMMENT ON FUNCTION forum_prevent_reply_relation_changes() IS 'Prevent reparenting/reassigning replies and changes to their creation timestamp; allow author SET NULL on profile deletion.';
+COMMENT ON FUNCTION forum_validate_reply_insert() IS 'Require every newly inserted reply to reference an active forum profile.';
+COMMENT ON FUNCTION forum_guard_forum_denormalized_update() IS 'Reject direct updates of forum cached counts/latest-post metadata; allow nested trigger maintenance.';
+COMMENT ON FUNCTION forum_guard_thread_denormalized_update() IS 'Reject direct updates of thread cached counts/latest-post metadata; allow nested trigger maintenance.';
+COMMENT ON FUNCTION forum_after_thread_insert() IS 'Update forum latest-post metadata and total messages; increment author message count.';
+COMMENT ON FUNCTION forum_sync_thread_title() IS 'Keep cached thread last_post_title synchronized with title during title updates.';
+COMMENT ON FUNCTION forum_after_thread_title_update() IS 'Propagate a thread title change into the forum latest-post title when applicable.';
+COMMENT ON FUNCTION forum_after_reply_insert() IS 'Increment thread/forum reply counters and update latest-post metadata and author stats.';
+COMMENT ON FUNCTION forum_after_reply_delete() IS 'For affected surviving threads/forums, recalculate counters/latest-post metadata and decrement author stats.';
+COMMENT ON FUNCTION forum_after_thread_delete() IS 'For affected surviving forums, recalculate totals/latest-post metadata and decrement thread-author stats.';
+
+-- Supabase Auth owns auth.users; COMMENT ON TRIGGER requires relation ownership.
+-- COMMENT ON TRIGGER forum_auth_user_created ON auth.users IS 'AFTER INSERT: Create forum_user_stats for the new auth user.';
+-- Supabase Auth owns auth.users; COMMENT ON TRIGGER requires relation ownership.
+-- COMMENT ON TRIGGER on_auth_user_created ON auth.users IS 'AFTER INSERT: Create the persistent public profile for the new auth user.';
+COMMENT ON TRIGGER private_messages_validate_insert ON public.private_messages IS 'BEFORE INSERT: Reject anonymous/new messages from nonparticipants.';
+COMMENT ON TRIGGER private_messages_notify_participants ON public.private_messages IS 'AFTER INSERT: Notify all other participants; the sender is excluded.';
+COMMENT ON TRIGGER private_threads_set_updated_at ON public.private_threads IS 'BEFORE UPDATE: Refresh private thread updated_at.';
+COMMENT ON TRIGGER private_messages_set_updated_at ON public.private_messages IS 'BEFORE UPDATE: Refresh private message updated_at.';
+COMMENT ON TRIGGER private_messages_after_insert ON public.private_messages IS 'AFTER INSERT: Track newest private message timestamp in its conversation.';
+COMMENT ON TRIGGER private_messages_after_delete ON public.private_messages IS 'AFTER DELETE: Recompute newest private message timestamp after deletion.';
+COMMENT ON TRIGGER private_messages_protect_fields ON public.private_messages IS 'BEFORE UPDATE: Preserve immutable fields while allowing sender removal via auth FK.';
+COMMENT ON TRIGGER replies_notify_followers ON public.replies IS 'AFTER INSERT: Create thread follower notifications.';
+COMMENT ON TRIGGER forums_prepare_insert ON forums IS 'BEFORE INSERT: Initialize zero aggregate state for new forums.';
+COMMENT ON TRIGGER profiles_set_updated_at ON public.profiles IS 'BEFORE UPDATE: Refresh public profile updated_at.';
+COMMENT ON TRIGGER forums_set_updated_at ON forums IS 'BEFORE UPDATE: Refresh forum updated_at.';
+COMMENT ON TRIGGER threads_set_updated_at ON threads IS 'BEFORE UPDATE: Refresh thread updated_at.';
+COMMENT ON TRIGGER replies_set_updated_at ON replies IS 'BEFORE UPDATE: Refresh reply updated_at.';
+COMMENT ON TRIGGER threads_prepare_insert ON threads IS 'BEFORE INSERT: Check thread author and initialize aggregate state.';
+COMMENT ON TRIGGER threads_prevent_relation_changes ON threads IS 'BEFORE UPDATE: Forbid editing thread parent, author or created_at (except author SET NULL).';
+COMMENT ON TRIGGER replies_prevent_relation_changes ON replies IS 'BEFORE UPDATE: Forbid editing reply parent, author or created_at (except author SET NULL).';
+COMMENT ON TRIGGER replies_validate_insert ON replies IS 'BEFORE INSERT: Require a valid, active author for new replies.';
+COMMENT ON TRIGGER forums_guard_denormalized_update ON forums IS 'BEFORE UPDATE: Reject client modifications to cached forum aggregates.';
+COMMENT ON TRIGGER threads_guard_denormalized_update ON threads IS 'BEFORE UPDATE: Reject client modifications to cached thread aggregates.';
+COMMENT ON TRIGGER threads_after_insert ON threads IS 'AFTER INSERT: Update parent forum and author totals.';
+COMMENT ON TRIGGER threads_sync_title ON threads IS 'BEFORE UPDATE: Mirror thread title into its cached last-post title.';
+COMMENT ON TRIGGER threads_after_title_update ON threads IS 'AFTER UPDATE: Refresh forum cached title when this thread was most recently active.';
+COMMENT ON TRIGGER replies_after_insert ON replies IS 'AFTER INSERT: Update thread/forum latest-post data and counts.';
+COMMENT ON TRIGGER replies_after_delete ON replies IS 'AFTER DELETE (statement): Recompute affected thread/forum data using the deleted_replies transition table.';
+COMMENT ON TRIGGER threads_after_delete ON threads IS 'AFTER DELETE (statement): Recompute affected forum data using the deleted_threads transition table.';
+
+-- The database consistency triggers do not replace authorization:
+-- restrict direct public/private table access and configure Supabase RLS or
+-- revoke client-facing PostgREST permissions if all access is through Go.
+-- The Go read endpoint should mark matching private_message notifications
+-- read when it advances private_thread_participants.last_read_at.
 
 COMMIT;

@@ -162,6 +162,7 @@ ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE forums (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  --   for sort order in frontend
   sort_order BIGINT NOT NULL,
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
@@ -262,7 +263,7 @@ CREATE TABLE public.notifications (
         REFERENCES public.replies(id) ON DELETE CASCADE,
 
 
-    message_id BIGINT,
+    message_id BIGINT ,
 
     actor_id UUID
         REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -341,7 +342,11 @@ CREATE TABLE public.private_messages (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-
+ALTER TABLE public.notifications
+ADD CONSTRAINT notifications_message_id_fk
+FOREIGN KEY (message_id)
+REFERENCES public.private_messages(id)
+ON DELETE CASCADE;
 
 -- Validates every new message at the database boundary.
 -- The Go API must still authenticate the caller and authorize their actions:
@@ -461,11 +466,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.private_messages_after_insert();
 
 
-ALTER TABLE public.notifications
-ADD CONSTRAINT notifications_message_id_fk
-FOREIGN KEY (message_id)
-REFERENCES public.private_messages(id)
-ON DELETE CASCADE;
+
 
 
 -- Find conversations belonging to a user

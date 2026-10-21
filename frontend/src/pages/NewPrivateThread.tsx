@@ -1,31 +1,35 @@
 import PostComposer, { type Post } from "../components/PostComposer";
-import { createThread } from "../fetchMethods/createThread";
+import { createPrivateThread } from "../fetchMethods/privateMessages";
 import { useParams } from "react-router-dom";
 import AfterPost from "../components/AfterPost";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-export default function NewThread() {
-  const { f } = useParams();
+export default function NewPrivateThread() {
+  const { userid } = useParams();
   const queryClient = useQueryClient();
 
   const createThreadMutation = useMutation({
     mutationFn: (item: Post) => {
-      if (!f) {
-        throw new Error("Forum ID is missing");
+      if (typeof userid !== "string") {
+        throw new Error("User ID is missing");
       }
 
-      return createThread(item, Number(f));
+      return createPrivateThread({
+        title: item.title,
+        content: item.content ?? "",
+        participant_ids: [userid],
+      });
     },
 
     onSuccess: () => {
       // Refresh replies for this thread
       queryClient.invalidateQueries({
-        queryKey: ["threads", f],
+        queryKey: ["threads", userid],
       });
 
       // Refresh thread details too
       queryClient.invalidateQueries({
-        queryKey: ["getThread", f],
+        queryKey: ["getThread", userid],
       });
     },
 
@@ -36,13 +40,8 @@ export default function NewThread() {
 
   if (createThreadMutation.isSuccess) {
     const response = createThreadMutation.data;
-
-    return (
-      <AfterPost
-        success={true}
-        postLink={`/forum/${response?.forum_id}/${response?.id}`}
-      />
-    );
+    console.log(response);
+    return <AfterPost success={true} postLink={`${userid}`} />;
   }
 
   if (createThreadMutation.isError) {
@@ -51,7 +50,8 @@ export default function NewThread() {
 
   return (
     <PostComposer
-      mode="thread"
+      mode="message"
+      submitText="הודעה פרטית"
       disabled={createThreadMutation.isPending}
       onSubmit={(item: Post) => {
         if (createThreadMutation.isPending) return;

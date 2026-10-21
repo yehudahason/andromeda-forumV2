@@ -121,7 +121,10 @@ export default function Replies({
                     <span className="flex items-center gap-1 text-sm">
                       <span>{tdetails.author.replies_count}</span>
                       <span>{formatDateFull(tdetails.author.created_at)}</span>
-                      <span>💬</span>
+
+                      <Link to={`/privatemessage/${tdetails.author.id}`}>
+                        💬
+                      </Link>
                     </span>
                   </div>
                   <div

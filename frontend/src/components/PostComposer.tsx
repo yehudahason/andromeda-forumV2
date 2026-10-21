@@ -19,7 +19,7 @@ export type Post = {
 };
 type PostComposerProps = {
   post?: Post;
-  mode: "thread" | "reply";
+  mode: "thread" | "reply" | "message";
   onSubmit: (data: Post) => void;
   submitText?: string;
   // initialContent?: string;
@@ -406,7 +406,7 @@ export default function PostComposer({
       //UnFollow thread if not notify
       if (!isThread && !notify) unFollow(threadID ?? null);
       onSubmit({
-        title: isThread ? title : undefined,
+        title: isThread || mode === "message" ? title : undefined,
         content: html,
         notify,
       });
@@ -421,6 +421,7 @@ export default function PostComposer({
       onSubmit,
       title,
       direction,
+      mode,
     ],
   );
 
@@ -433,26 +434,30 @@ export default function PostComposer({
         dir="rtl"
         className="mx-auto mt-8 w-full max-w-[1280px] rounded-lg bg-[#505050] sm:px-4 px-1 py-8 text-white"
       >
-        {isThread && (
-          <div className="mb-[22px]">
-            <label htmlFor="post-title" className="mb-2 flex gap-1 text-[15px]">
-              <span>כותרת </span>
-              <span className="mr-1.5 text-red-700">חובה</span>
-            </label>
+        {isThread ||
+          (mode === "message" && (
+            <div className="mb-[22px]">
+              <label
+                htmlFor="post-title"
+                className="mb-2 flex gap-1 text-[15px]"
+              >
+                <span>כותרת </span>
+                <span className="mr-1.5 text-red-700">חובה</span>
+              </label>
 
-            <input
-              max={150}
-              id="post-title"
-              type="text"
-              value={title}
-              onChange={(e) => {
-                if (e.target.value.length > 150) return;
-                else {
-                  setTitle(e.target.value);
-                }
-              }}
-              required
-              className="
+              <input
+                max={150}
+                id="post-title"
+                type="text"
+                value={title}
+                onChange={(e) => {
+                  if (e.target.value.length > 150) return;
+                  else {
+                    setTitle(e.target.value);
+                  }
+                }}
+                required
+                className="
                   box-border
                   h-[60px]
                   w-full
@@ -467,9 +472,9 @@ export default function PostComposer({
                   outline-none
                   focus:border-[#aaa]
                 "
-            />
-          </div>
-        )}
+              />
+            </div>
+          ))}
 
         <div className="mb-[22px]">
           <label className="mb-2 block text-[15px]">

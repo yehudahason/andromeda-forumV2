@@ -7,6 +7,7 @@ import ThreadPage from "./pages/ThreadPage";
 import NewThread from "./pages/NewThread";
 import NewReply from "./pages/NewReply";
 // import AuthGuard from "./components/Guard";
+import NewPrivateMessage from "./pages/NewPrivateMessage";
 import UploadPage from "./pages/UploadPage";
 import EditThread from "./pages/EditThread";
 import EditReply from "./pages/EditReply";
@@ -84,7 +85,8 @@ export default function App() {
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/forum/:f" element={<ForumPage />} />
       <Route path="/newposts" element={<NewPosts />} />
-      <Route path="/privatemessage/:userid" element={<NewPrivateThread />} />
+      <Route path="/privatethread/:userid" element={<NewPrivateThread />} />
+      <Route path="/privatemessage/:tid" element={<NewPrivateMessage />} />
       <Route path="/forum/:f/:t" element={<ThreadPage />} />
       <Route
         path="/post/:f"

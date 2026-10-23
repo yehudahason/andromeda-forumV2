@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/yehudahason/andromeda-forumV2/internal/storage"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/storage"
 )
 
 func (h *Handler) UploadImageHandler(w http.ResponseWriter, r *http.Request) {

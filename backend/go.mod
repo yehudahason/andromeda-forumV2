@@ -1,4 +1,4 @@
-module github.com/yehudahason/andromeda-forumV2
+module github.com/yehudahason/andromeda-forumV2/backend
 
 go 1.26.5
 

@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/yehudahason/andromeda-forumV2/internal/models"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/models"
 )
 
 func (h *Handler) GetLatestPosts(w http.ResponseWriter, r *http.Request) {

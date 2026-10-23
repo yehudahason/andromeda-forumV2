@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/yehudahason/andromeda-forumV2/internal/auth"
-	"github.com/yehudahason/andromeda-forumV2/internal/models"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/auth"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/models"
 )
 
 func (h *Handler) GetThreads(w http.ResponseWriter, r *http.Request) {

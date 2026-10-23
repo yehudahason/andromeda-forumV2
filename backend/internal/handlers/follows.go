@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/yehudahason/andromeda-forumV2/internal/auth"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/auth"
 )
 
 func (h *Handler) FollowThread(

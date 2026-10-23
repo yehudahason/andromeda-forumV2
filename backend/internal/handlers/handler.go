@@ -4,7 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/yehudahason/andromeda-forumV2/internal/auth"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/auth"
 )
 
 // Handler groups HTTP endpoints and their shared dependencies.

@@ -3,7 +3,7 @@ package server
 import (
 	"net/http"
 
-	"github.com/yehudahason/andromeda-forumV2/internal/handlers"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/handlers"
 )
 
 func NewMux(h *handlers.Handler) *http.ServeMux {

@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/yehudahason/andromeda-forumV2/internal/models"
-	"github.com/yehudahason/andromeda-forumV2/internal/storage"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/models"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/storage"
 )
 
 // Service owns the dependencies required to authenticate a request.

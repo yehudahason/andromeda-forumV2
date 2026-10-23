@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/yehudahason/andromeda-forumV2/internal/auth"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/auth"
 )
 
 func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {

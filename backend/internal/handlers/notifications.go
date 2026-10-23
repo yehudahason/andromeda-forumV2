@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/yehudahason/andromeda-forumV2/internal/models"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/models"
 )
 
 const (

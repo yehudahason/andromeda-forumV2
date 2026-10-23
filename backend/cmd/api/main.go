@@ -11,9 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 
-	"github.com/yehudahason/andromeda-forumV2/internal/auth"
-	"github.com/yehudahason/andromeda-forumV2/internal/handlers"
-	"github.com/yehudahason/andromeda-forumV2/internal/server"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/auth"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/handlers"
+	"github.com/yehudahason/andromeda-forumV2/backend/internal/server"
 )
 
 func main() {

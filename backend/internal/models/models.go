@@ -1,4 +1,4 @@
-package main
+package models
 
 import (
 	"time"
@@ -25,6 +25,7 @@ type ThreadDetails struct {
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
 }
+
 type Thread struct {
 	ID             int64      `json:"id"`
 	ForumID        int64      `json:"forum_id"`
@@ -46,6 +47,7 @@ type ThreadListResponse struct {
 	Page      int      `json:"page"`
 	PerPage   int      `json:"per_page"`
 }
+
 type Forum struct {
 	ID               int64      `json:"id"`
 	Name             string     `json:"name"`
@@ -57,14 +59,17 @@ type Forum struct {
 	LastPostAuthor   *string    `json:"last_post_author"`
 	LastPostDate     *time.Time `json:"last_post_date"`
 }
+
 type UpdateForumSortOrderRequest struct {
 	SortOrder int64 `json:"sort_order"`
 }
+
 type CreateForumRequest struct {
 	SortOrder   int64  `json:"sort_order"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
+
 type Reply struct {
 	ID        uuid.UUID `json:"id"`
 	ThreadID  int64     `json:"thread_id"`
@@ -80,6 +85,7 @@ type ReplyPost struct {
 	Post   string `json:"post"`
 	Notify bool   `json:"notify"`
 }
+
 type ReplyListResponse struct {
 	Replies []Reply `json:"replies"`
 	Total   int64   `json:"total"`
@@ -102,6 +108,7 @@ type CreateThreadResponse struct {
 	Notify    bool      `json:"notify"`
 	CreatedAt time.Time `json:"created_at"`
 }
+
 type CreateReplyRequest struct {
 	Post   string `json:"post"`
 	Notify bool   `json:"notify"`
@@ -136,4 +143,5 @@ type LatestPost struct {
 	CreatedAt        time.Time `json:"created_at"`
 	MessagesCount    int64     `json:"messages_count"`
 }
+
 type NotificationType string

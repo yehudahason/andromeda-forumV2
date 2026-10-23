@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"encoding/json"
@@ -8,11 +8,100 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/yehudahason/andromeda-forumV2/internal/auth"
+	"github.com/yehudahason/andromeda-forumV2/internal/models"
 )
 
-func deleteForum(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetForums(w http.ResponseWriter, r *http.Request) {
+	forums := []models.Forum{}
+
+	rows, err := h.DB.Query(
+		r.Context(),
+		`
+		SELECT
+			f.id,
+			f.name,
+			f.description,
+			f.messages_count,
+			f.last_post_thread_id,
+			f.last_post_title,
+			f.sort_order,
+			CASE
+				WHEN f.last_post_date IS NULL THEN NULL
+				ELSE COALESCE(p.name, 'Deleted user')
+			END AS last_post_author,
+			f.last_post_date
+		FROM public.forums AS f
+		LEFT JOIN public.profiles AS p
+			ON p.id = f.last_post_author_id
+		ORDER BY f.sort_order ASC, f.id ASC;
+		`,
+	)
+	if err != nil {
+		h.Logger.Error(
+			"getForums query error",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
+
+		http.Error(w, "Failed to get forums", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var forum models.Forum
+
+		err := rows.Scan(
+			&forum.ID,
+			&forum.Name,
+			&forum.Description,
+			&forum.MessagesCount,
+			&forum.LastPostThreadId,
+			&forum.LastPostTitle,
+			&forum.SortOrder,
+			&forum.LastPostAuthor,
+			&forum.LastPostDate,
+		)
+		if err != nil {
+			h.Logger.Error(
+				"getForums scan error",
+				"error", err,
+				"status", http.StatusInternalServerError,
+			)
+
+			http.Error(w, "Failed to scan forum", http.StatusInternalServerError)
+			return
+		}
+
+		forums = append(forums, forum)
+	}
+
+	if err := rows.Err(); err != nil {
+		h.Logger.Error(
+			"getForums rows error",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
+
+		http.Error(w, "Failed to read forums", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(forums); err != nil {
+		h.Logger.Error(
+			"getForums encode error",
+			"error", err,
+			"status", http.StatusOK,
+		)
+		return
+	}
+}
+
+func (h *Handler) DeleteForum(w http.ResponseWriter, r *http.Request) {
 	forumIDString := r.PathValue("forumID")
 
 	forumID, err := strconv.ParseInt(forumIDString, 10, 64)
@@ -21,15 +110,15 @@ func deleteForum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := getUserID(r)
+	user, err := h.Auth.GetUser(r)
 	if err != nil {
-		if errors.Is(err, ErrUnauthorized) {
+		if errors.Is(err, auth.ErrUnauthorized) {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		logger.Error(
+		h.Logger.Error(
 			"deleteForum authentication error",
 			"error", err,
 			"status", http.StatusInternalServerError,
@@ -44,7 +133,7 @@ func deleteForum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := db.Exec(
+	result, err := h.DB.Exec(
 		r.Context(),
 		`
 		DELETE FROM public.forums
@@ -54,7 +143,7 @@ func deleteForum(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		logger.Error(
+		h.Logger.Error(
 			"deleteForum database error",
 			"error", err,
 			"forum_id", forumID,
@@ -74,140 +163,16 @@ func deleteForum(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func deleteThread(w http.ResponseWriter, r *http.Request) {
-	threadIDString := r.PathValue("threadID")
-
-	threadID, err := strconv.ParseInt(threadIDString, 10, 64)
-	if err != nil || threadID <= 0 {
-		http.Error(w, "Invalid thread ID", http.StatusBadRequest)
-		return
-	}
-
-	user, err := getUserID(r)
+func (h *Handler) CreateForum(w http.ResponseWriter, r *http.Request) {
+	user, err := h.Auth.GetUser(r)
 	if err != nil {
-		if errors.Is(err, ErrUnauthorized) {
+		if errors.Is(err, auth.ErrUnauthorized) {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		logger.Error(
-			"deleteThread authentication error",
-			"error", err,
-			"status", http.StatusInternalServerError,
-		)
-
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if user.Role != "admin" {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	result, err := db.Exec(
-		r.Context(),
-		`
-		DELETE FROM public.threads
-		WHERE id = $1
-		`,
-		threadID,
-	)
-
-	if err != nil {
-		logger.Error(
-			"deleteThread database error",
-			"error", err,
-			"thread_id", threadID,
-			"user_id", user.ID,
-			"status", http.StatusInternalServerError,
-		)
-
-		http.Error(w, "Failed to delete thread", http.StatusInternalServerError)
-		return
-	}
-
-	if result.RowsAffected() == 0 {
-		http.Error(w, "Thread not found", http.StatusNotFound)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func deleteReply(w http.ResponseWriter, r *http.Request) {
-	replyIDString := r.PathValue("replyID")
-
-	replyID, err := uuid.Parse(replyIDString)
-	if err != nil {
-		http.Error(w, "Invalid reply ID", http.StatusBadRequest)
-		return
-	}
-
-	user, err := getUserID(r)
-	if err != nil {
-		if errors.Is(err, ErrUnauthorized) {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		logger.Error(
-			"deleteReply authentication error",
-			"error", err,
-			"status", http.StatusInternalServerError,
-		)
-
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if user.Role != "admin" {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	result, err := db.Exec(
-		r.Context(),
-		`
-		DELETE FROM public.replies
-		WHERE id = $1
-		`,
-		replyID,
-	)
-
-	if err != nil {
-		logger.Error(
-			"deleteReply database error",
-			"error", err,
-			"reply_id", replyID,
-			"user_id", user.ID,
-			"status", http.StatusInternalServerError,
-		)
-
-		http.Error(w, "Failed to delete reply", http.StatusInternalServerError)
-		return
-	}
-
-	if result.RowsAffected() == 0 {
-		http.Error(w, "Reply not found", http.StatusNotFound)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func createForum(w http.ResponseWriter, r *http.Request) {
-	user, err := getUserID(r)
-	if err != nil {
-		if errors.Is(err, ErrUnauthorized) {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		logger.Error(
+		h.Logger.Error(
 			"createForum authentication error",
 			"error", err,
 			"status", http.StatusInternalServerError,
@@ -222,7 +187,7 @@ func createForum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input CreateForumRequest
+	var input models.CreateForumRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -247,9 +212,9 @@ func createForum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var forum Forum
+	var forum models.Forum
 
-	err = db.QueryRow(
+	err = h.DB.QueryRow(
 		r.Context(),
 		`
 		INSERT INTO public.forums (
@@ -275,7 +240,7 @@ func createForum(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		logger.Error(
+		h.Logger.Error(
 			"failed to create forum",
 			"error", err,
 			"user_id", user.ID,
@@ -290,7 +255,7 @@ func createForum(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(forum); err != nil {
-		logger.Error(
+		h.Logger.Error(
 			"failed to encode forum",
 			"error", err,
 			"status", http.StatusCreated,
@@ -298,16 +263,16 @@ func createForum(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func updateForum(w http.ResponseWriter, r *http.Request) {
-	user, err := getUserID(r)
+func (h *Handler) UpdateForum(w http.ResponseWriter, r *http.Request) {
+	user, err := h.Auth.GetUser(r)
 	if err != nil {
-		if errors.Is(err, ErrUnauthorized) {
+		if errors.Is(err, auth.ErrUnauthorized) {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		logger.Error(
+		h.Logger.Error(
 			"updateForum authentication error",
 			"error", err,
 			"status", http.StatusInternalServerError,
@@ -330,7 +295,7 @@ func updateForum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input CreateForumRequest
+	var input models.CreateForumRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -355,9 +320,9 @@ func updateForum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var forum Forum
+	var forum models.Forum
 
-	err = db.QueryRow(
+	err = h.DB.QueryRow(
 		r.Context(),
 		`
 		UPDATE public.forums
@@ -389,7 +354,7 @@ func updateForum(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logger.Error(
+		h.Logger.Error(
 			"failed to update forum",
 			"error", err,
 			"forum_id", forumID,
@@ -404,7 +369,7 @@ func updateForum(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(forum); err != nil {
-		logger.Error(
+		h.Logger.Error(
 			"failed to encode forum",
 			"error", err,
 			"status", http.StatusOK,

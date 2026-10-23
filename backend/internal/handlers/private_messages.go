@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"encoding/json"
@@ -13,26 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/yehudahason/andromeda-forumV2/internal/auth"
 )
-
-// Requires the existing globals/functions in your API:
-//
-//	db: *pgxpool.Pool
-//	getUserID(r *http.Request) (User, error)  // User.ID is uuid.UUID
-//	ErrUnauthorized: error
-//	logger: your existing structured logger
-//
-// Go 1.22+ standard-library ServeMux.
-func registerPrivateRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/private/threads", createPrivateThread)
-	mux.HandleFunc("GET /api/private/threads", listPrivateThreads)
-	mux.HandleFunc("GET /api/private/threads/{id}", getPrivateThread)
-	mux.HandleFunc("GET /api/private/threads/{id}/messages", listPrivateMessages)
-	mux.HandleFunc("POST /api/private/threads/{id}/messages", sendPrivateMessage)
-	mux.HandleFunc("PUT /api/private/messages/{id}", editPrivateMessage)
-	mux.HandleFunc("DELETE /api/private/messages/{id}", deletePrivateMessage)
-	mux.HandleFunc("PUT /api/private/threads/{id}/read", markPrivateThreadRead)
-}
 
 const privatePageSize = 14
 
@@ -66,34 +48,45 @@ type privateMessage struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func privateAuth(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	user, err := getUserID(r)
+func (h *Handler) RegisterPrivateRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("POST /api/private/threads", h.CreatePrivateThread)
+	mux.HandleFunc("GET /api/private/threads", h.ListPrivateThreads)
+	mux.HandleFunc("GET /api/private/threads/{id}", h.GetPrivateThread)
+	mux.HandleFunc("GET /api/private/threads/{id}/messages", h.ListPrivateMessages)
+	mux.HandleFunc("POST /api/private/threads/{id}/messages", h.SendPrivateMessage)
+	mux.HandleFunc("PUT /api/private/messages/{id}", h.EditPrivateMessage)
+	mux.HandleFunc("DELETE /api/private/messages/{id}", h.DeletePrivateMessage)
+	mux.HandleFunc("PUT /api/private/threads/{id}/read", h.MarkPrivateThreadRead)
+}
+
+func (h *Handler) privateAuth(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	user, err := h.Auth.GetUser(r)
 	if err == nil {
 		return user.ID, true
 	}
-	if errors.Is(err, ErrUnauthorized) {
+	if errors.Is(err, auth.ErrUnauthorized) {
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 	} else {
-		privateInternalError(w, "private message authentication", err)
+		h.privateInternalError(w, "private message authentication", err)
 	}
 	return uuid.Nil, false
 }
 
-func privateInternalError(w http.ResponseWriter, operation string, err error) {
-	logger.Error(operation, "error", err, "status", http.StatusInternalServerError)
+func (h *Handler) privateInternalError(w http.ResponseWriter, operation string, err error) {
+	h.Logger.Error(operation, "error", err, "status", http.StatusInternalServerError)
 	http.Error(w, "Internal server error", http.StatusInternalServerError)
 }
 
-func privateWriteJSON(w http.ResponseWriter, status int, value any) {
+func (h *Handler) privateWriteJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(value); err != nil {
-		logger.Error("private message JSON response", "error", err)
+		h.Logger.Error("private message JSON response", "error", err)
 	}
 }
 
-func privateDecodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+func (h *Handler) privateDecodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 	// Large enough for a 100,000-character UTF-8 message, but bounded.
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	decoder.DisallowUnknownFields()
@@ -114,7 +107,7 @@ func privateDecodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 	return true
 }
 
-func privatePathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+func (h *Handler) privatePathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || id <= 0 {
 		http.Error(w, "Invalid ID", http.StatusBadRequest)
@@ -123,7 +116,7 @@ func privatePathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
-func privatePage(w http.ResponseWriter, r *http.Request) (int, bool) {
+func (h *Handler) privatePage(w http.ResponseWriter, r *http.Request) (int, bool) {
 	page := 1
 	if raw := r.URL.Query().Get("page"); raw != "" {
 		n, err := strconv.Atoi(raw)
@@ -138,16 +131,17 @@ func privatePage(w http.ResponseWriter, r *http.Request) (int, bool) {
 
 // Return 404 both for nonexistent conversations and conversations the user
 // does not belong to; this avoids disclosing private conversation IDs.
-func privateRequireParticipant(w http.ResponseWriter, r *http.Request, threadID int64, userID uuid.UUID) bool {
+
+func (h *Handler) privateRequireParticipant(w http.ResponseWriter, r *http.Request, threadID int64, userID uuid.UUID) bool {
 	var allowed bool
-	err := db.QueryRow(r.Context(), `
+	err := h.DB.QueryRow(r.Context(), `
 		SELECT EXISTS (
 			SELECT 1 FROM public.private_thread_participants
 			WHERE thread_id = $1 AND user_id = $2
 		)
 	`, threadID, userID).Scan(&allowed)
 	if err != nil {
-		privateInternalError(w, "check private conversation participant", err)
+		h.privateInternalError(w, "check private conversation participant", err)
 		return false
 	}
 	if !allowed {
@@ -160,11 +154,12 @@ func privateRequireParticipant(w http.ResponseWriter, r *http.Request, threadID 
 // POST /api/private/threads
 // Body: {"title":"Optional title", "participant_ids":["recipient-uuid", ...] ,"content":"message"}
 // The authenticated user is always added as a participant.
-func createPrivateThread(w http.ResponseWriter, r *http.Request) {
+
+func (h *Handler) CreatePrivateThread(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// 1. Authenticate user
-	userID, ok := privateAuth(w, r)
+	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return
 	}
@@ -176,12 +171,12 @@ func createPrivateThread(w http.ResponseWriter, r *http.Request) {
 		Content        string      `json:"content"`
 	}
 
-	if !privateDecodeJSON(w, r, &input) {
+	if !h.privateDecodeJSON(w, r, &input) {
 		return
 	}
 
 	// 3. Validate first message
-	if !privateValidateContent(w, input.Content) {
+	if !h.privateValidateContent(w, input.Content) {
 		return
 	}
 
@@ -235,9 +230,9 @@ func createPrivateThread(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 6. Begin transaction
-	tx, err := db.Begin(ctx)
+	tx, err := h.DB.Begin(ctx)
 	if err != nil {
-		privateInternalError(w, "begin private thread transaction", err)
+		h.privateInternalError(w, "begin private thread transaction", err)
 		return
 	}
 	defer tx.Rollback(ctx)
@@ -258,7 +253,7 @@ func createPrivateThread(w http.ResponseWriter, r *http.Request) {
 	).Scan(&threadID)
 
 	if err != nil {
-		privateInternalError(w, "create private thread", err)
+		h.privateInternalError(w, "create private thread", err)
 		return
 	}
 
@@ -285,7 +280,7 @@ func createPrivateThread(w http.ResponseWriter, r *http.Request) {
 					http.StatusBadRequest,
 				)
 			} else {
-				privateInternalError(w, "insert private participant", err)
+				h.privateInternalError(w, "insert private participant", err)
 			}
 			return
 		}
@@ -322,7 +317,7 @@ func createPrivateThread(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		privateInternalError(w, "insert first private message", err)
+		h.privateInternalError(w, "insert first private message", err)
 		return
 	}
 
@@ -339,7 +334,7 @@ func createPrivateThread(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		privateInternalError(w, "mark private thread read", err)
+		h.privateInternalError(w, "mark private thread read", err)
 		return
 	}
 
@@ -367,18 +362,18 @@ func createPrivateThread(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		privateInternalError(w, "fetch created private thread", err)
+		h.privateInternalError(w, "fetch created private thread", err)
 		return
 	}
 
 	// 12. Commit all operations
 	if err := tx.Commit(ctx); err != nil {
-		privateInternalError(w, "commit private thread transaction", err)
+		h.privateInternalError(w, "commit private thread transaction", err)
 		return
 	}
 
 	// 13. Return created thread and first message
-	privateWriteJSON(w, http.StatusCreated, struct {
+	h.privateWriteJSON(w, http.StatusCreated, struct {
 		Thread         privateThread  `json:"thread"`
 		Message        privateMessage `json:"message"`
 		ParticipantIDs []uuid.UUID    `json:"participant_ids"`
@@ -390,26 +385,27 @@ func createPrivateThread(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /api/private/threads?page=1
-func listPrivateThreads(w http.ResponseWriter, r *http.Request) {
-	userID, ok := privateAuth(w, r)
+
+func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return
 	}
-	page, ok := privatePage(w, r)
+	page, ok := h.privatePage(w, r)
 	if !ok {
 		return
 	}
 
 	var total int64
-	err := db.QueryRow(r.Context(), `
+	err := h.DB.QueryRow(r.Context(), `
 		SELECT COUNT(*) FROM public.private_thread_participants WHERE user_id = $1
 	`, userID).Scan(&total)
 	if err != nil {
-		privateInternalError(w, "count private threads", err)
+		h.privateInternalError(w, "count private threads", err)
 		return
 	}
 
-	rows, err := db.Query(r.Context(), `
+	rows, err := h.DB.Query(r.Context(), `
 		SELECT
 			t.id, t.title, t.created_by::text, t.last_message_at,
 			t.created_at, t.updated_at,
@@ -427,7 +423,7 @@ func listPrivateThreads(w http.ResponseWriter, r *http.Request) {
 		LIMIT $2 OFFSET $3
 	`, userID, privatePageSize, (page-1)*privatePageSize)
 	if err != nil {
-		privateInternalError(w, "query private threads", err)
+		h.privateInternalError(w, "query private threads", err)
 		return
 	}
 	defer rows.Close()
@@ -440,17 +436,17 @@ func listPrivateThreads(w http.ResponseWriter, r *http.Request) {
 			&t.CreatedAt, &t.UpdatedAt, &t.ParticipantsCount, &t.UnreadCount,
 		)
 		if err != nil {
-			privateInternalError(w, "scan private threads", err)
+			h.privateInternalError(w, "scan private threads", err)
 			return
 		}
 		threads = append(threads, t)
 	}
 	if err := rows.Err(); err != nil {
-		privateInternalError(w, "iterate private threads", err)
+		h.privateInternalError(w, "iterate private threads", err)
 		return
 	}
 
-	privateWriteJSON(w, http.StatusOK, struct {
+	h.privateWriteJSON(w, http.StatusOK, struct {
 		Threads []privateThreadSummary `json:"threads"`
 		Total   int64                  `json:"total"`
 		Page    int                    `json:"page"`
@@ -459,18 +455,19 @@ func listPrivateThreads(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /api/private/threads/{id}
-func getPrivateThread(w http.ResponseWriter, r *http.Request) {
-	userID, ok := privateAuth(w, r)
+
+func (h *Handler) GetPrivateThread(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return
 	}
-	threadID, ok := privatePathID(w, r)
+	threadID, ok := h.privatePathID(w, r)
 	if !ok {
 		return
 	}
 
 	var thread privateThread
-	err := db.QueryRow(r.Context(), `
+	err := h.DB.QueryRow(r.Context(), `
 		SELECT t.id, t.title, t.created_by::text, t.last_message_at,
 		       t.created_at, t.updated_at
 		FROM public.private_threads AS t
@@ -486,11 +483,11 @@ func getPrivateThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		privateInternalError(w, "get private thread", err)
+		h.privateInternalError(w, "get private thread", err)
 		return
 	}
 
-	rows, err := db.Query(r.Context(), `
+	rows, err := h.DB.Query(r.Context(), `
 		SELECT user_id::text, joined_at, last_read_at
 		FROM public.private_thread_participants
 		WHERE thread_id = $1
@@ -501,7 +498,7 @@ func getPrivateThread(w http.ResponseWriter, r *http.Request) {
 		ORDER BY joined_at, user_id
 	`, threadID, userID)
 	if err != nil {
-		privateInternalError(w, "list private participants", err)
+		h.privateInternalError(w, "list private participants", err)
 		return
 	}
 	defer rows.Close()
@@ -510,41 +507,42 @@ func getPrivateThread(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var p privateParticipant
 		if err := rows.Scan(&p.UserID, &p.JoinedAt, &p.LastReadAt); err != nil {
-			privateInternalError(w, "scan private participants", err)
+			h.privateInternalError(w, "scan private participants", err)
 			return
 		}
 		participants = append(participants, p)
 	}
 	if err := rows.Err(); err != nil {
-		privateInternalError(w, "iterate private participants", err)
+		h.privateInternalError(w, "iterate private participants", err)
 		return
 	}
-	privateWriteJSON(w, http.StatusOK, struct {
+	h.privateWriteJSON(w, http.StatusOK, struct {
 		Thread       privateThread        `json:"thread"`
 		Participants []privateParticipant `json:"participants"`
 	}{Thread: thread, Participants: participants})
 }
 
 // GET /api/private/threads/{id}/messages?page=1
-func listPrivateMessages(w http.ResponseWriter, r *http.Request) {
-	userID, ok := privateAuth(w, r)
+
+func (h *Handler) ListPrivateMessages(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return
 	}
-	threadID, ok := privatePathID(w, r)
+	threadID, ok := h.privatePathID(w, r)
 	if !ok {
 		return
 	}
-	page, ok := privatePage(w, r)
+	page, ok := h.privatePage(w, r)
 	if !ok {
 		return
 	}
-	if !privateRequireParticipant(w, r, threadID, userID) {
+	if !h.privateRequireParticipant(w, r, threadID, userID) {
 		return
 	}
 
 	var total int64
-	err := db.QueryRow(r.Context(), `
+	err := h.DB.QueryRow(r.Context(), `
 		SELECT COUNT(*) FROM public.private_messages AS m
 		WHERE m.thread_id = $1
 		  AND EXISTS (
@@ -553,11 +551,11 @@ func listPrivateMessages(w http.ResponseWriter, r *http.Request) {
 		  )
 	`, threadID, userID).Scan(&total)
 	if err != nil {
-		privateInternalError(w, "count private messages", err)
+		h.privateInternalError(w, "count private messages", err)
 		return
 	}
 
-	rows, err := db.Query(r.Context(), `
+	rows, err := h.DB.Query(r.Context(), `
 		SELECT m.id, m.thread_id, m.sender_id::text, m.content,
 		       m.created_at, m.updated_at
 		FROM public.private_messages AS m
@@ -570,7 +568,7 @@ func listPrivateMessages(w http.ResponseWriter, r *http.Request) {
 		LIMIT $3 OFFSET $4
 	`, threadID, userID, privatePageSize, (page-1)*privatePageSize)
 	if err != nil {
-		privateInternalError(w, "query private messages", err)
+		h.privateInternalError(w, "query private messages", err)
 		return
 	}
 	defer rows.Close()
@@ -582,17 +580,17 @@ func listPrivateMessages(w http.ResponseWriter, r *http.Request) {
 			&m.ID, &m.ThreadID, &m.SenderID,
 			&m.Content, &m.CreatedAt, &m.UpdatedAt,
 		); err != nil {
-			privateInternalError(w, "scan private messages", err)
+			h.privateInternalError(w, "scan private messages", err)
 			return
 		}
 		messages = append(messages, m)
 	}
 	if err := rows.Err(); err != nil {
-		privateInternalError(w, "iterate private messages", err)
+		h.privateInternalError(w, "iterate private messages", err)
 		return
 	}
 
-	privateWriteJSON(w, http.StatusOK, struct {
+	h.privateWriteJSON(w, http.StatusOK, struct {
 		Messages []privateMessage `json:"messages"`
 		Total    int64            `json:"total"`
 		Page     int              `json:"page"`
@@ -600,7 +598,7 @@ func listPrivateMessages(w http.ResponseWriter, r *http.Request) {
 	}{Messages: messages, Total: total, Page: page, PerPage: privatePageSize})
 }
 
-func privateValidateContent(w http.ResponseWriter, content string) bool {
+func (h *Handler) privateValidateContent(w http.ResponseWriter, content string) bool {
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" || utf8.RuneCountInString(strings.Trim(content, " ")) > 100_000 {
 		http.Error(w, "Content must contain 1 to 100000 characters", http.StatusBadRequest)
@@ -611,27 +609,28 @@ func privateValidateContent(w http.ResponseWriter, content string) bool {
 
 // POST /api/private/threads/{id}/messages
 // Body: {"content":"Hello"}
-func sendPrivateMessage(w http.ResponseWriter, r *http.Request) {
-	userID, ok := privateAuth(w, r)
+
+func (h *Handler) SendPrivateMessage(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return
 	}
-	threadID, ok := privatePathID(w, r)
+	threadID, ok := h.privatePathID(w, r)
 	if !ok {
 		return
 	}
 	var input struct {
 		Content string `json:"content"`
 	}
-	if !privateDecodeJSON(w, r, &input) {
+	if !h.privateDecodeJSON(w, r, &input) {
 		return
 	}
-	if !privateValidateContent(w, input.Content) {
+	if !h.privateValidateContent(w, input.Content) {
 		return
 	}
 
 	var message privateMessage
-	err := db.QueryRow(r.Context(), `
+	err := h.DB.QueryRow(r.Context(), `
 		INSERT INTO public.private_messages (thread_id, sender_id, content)
 		SELECT $1, $2, $3
 		WHERE EXISTS (
@@ -648,35 +647,36 @@ func sendPrivateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		privateInternalError(w, "send private message", err)
+		h.privateInternalError(w, "send private message", err)
 		return
 	}
-	privateWriteJSON(w, http.StatusCreated, message)
+	h.privateWriteJSON(w, http.StatusCreated, message)
 }
 
 // PUT /api/private/messages/{id}
 // Body: {"content":"Edited text"}
-func editPrivateMessage(w http.ResponseWriter, r *http.Request) {
-	userID, ok := privateAuth(w, r)
+
+func (h *Handler) EditPrivateMessage(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return
 	}
-	messageID, ok := privatePathID(w, r)
+	messageID, ok := h.privatePathID(w, r)
 	if !ok {
 		return
 	}
 	var input struct {
 		Content string `json:"content"`
 	}
-	if !privateDecodeJSON(w, r, &input) {
+	if !h.privateDecodeJSON(w, r, &input) {
 		return
 	}
-	if !privateValidateContent(w, input.Content) {
+	if !h.privateValidateContent(w, input.Content) {
 		return
 	}
 
 	var message privateMessage
-	err := db.QueryRow(r.Context(), `
+	err := h.DB.QueryRow(r.Context(), `
 		UPDATE public.private_messages AS m
 		SET content = $1
 		WHERE m.id = $2
@@ -695,25 +695,26 @@ func editPrivateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		privateInternalError(w, "edit private message", err)
+		h.privateInternalError(w, "edit private message", err)
 		return
 	}
-	privateWriteJSON(w, http.StatusOK, message)
+	h.privateWriteJSON(w, http.StatusOK, message)
 }
 
 // DELETE /api/private/messages/{id}
-func deletePrivateMessage(w http.ResponseWriter, r *http.Request) {
-	userID, ok := privateAuth(w, r)
+
+func (h *Handler) DeletePrivateMessage(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return
 	}
-	messageID, ok := privatePathID(w, r)
+	messageID, ok := h.privatePathID(w, r)
 	if !ok {
 		return
 	}
 
 	var deletedID int64
-	err := db.QueryRow(r.Context(), `
+	err := h.DB.QueryRow(r.Context(), `
 		DELETE FROM public.private_messages AS m
 		WHERE m.id = $1 AND m.sender_id = $2
 		  AND EXISTS (
@@ -727,7 +728,7 @@ func deletePrivateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		privateInternalError(w, "delete private message", err)
+		h.privateInternalError(w, "delete private message", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -736,18 +737,19 @@ func deletePrivateMessage(w http.ResponseWriter, r *http.Request) {
 // PUT /api/private/threads/{id}/read
 // Marks messages currently in the conversation as read, never moving
 // last_read_at backwards.
-func markPrivateThreadRead(w http.ResponseWriter, r *http.Request) {
-	userID, ok := privateAuth(w, r)
+
+func (h *Handler) MarkPrivateThreadRead(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return
 	}
-	threadID, ok := privatePathID(w, r)
+	threadID, ok := h.privatePathID(w, r)
 	if !ok {
 		return
 	}
 
 	var readAt time.Time
-	err := db.QueryRow(r.Context(), `
+	err := h.DB.QueryRow(r.Context(), `
 		UPDATE public.private_thread_participants AS p
 		SET last_read_at = GREATEST(
 		    p.last_read_at,
@@ -766,10 +768,10 @@ func markPrivateThreadRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		privateInternalError(w, "mark private conversation read", err)
+		h.privateInternalError(w, "mark private conversation read", err)
 		return
 	}
-	privateWriteJSON(w, http.StatusOK, struct {
+	h.privateWriteJSON(w, http.StatusOK, struct {
 		ThreadID   int64     `json:"thread_id"`
 		LastReadAt time.Time `json:"last_read_at"`
 	}{ThreadID: threadID, LastReadAt: readAt})

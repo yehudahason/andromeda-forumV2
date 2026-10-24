@@ -122,7 +122,13 @@ export default function Replies({
                       <span>{tdetails.author.replies_count}</span>
                       <span>{formatDateFull(tdetails.author.created_at)}</span>
 
-                      <Link to={`/privatemessage/${tdetails.author.id}`}>
+                      <Link
+                        title="thread"
+                        to={`/privatethread/${tdetails.author.id}`}
+                      >
+                        💬
+                      </Link>
+                      <Link title="message" to={`/privatemessage/1`}>
                         💬
                       </Link>
                     </span>

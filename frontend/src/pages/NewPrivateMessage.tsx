@@ -46,7 +46,7 @@ export default function NewPrivateMessage() {
 
   return (
     <PostComposer
-      mode="message"
+      mode="reply"
       submitText="הודעה פרטית"
       disabled={createThreadMutation.isPending}
       onSubmit={(item: Post) => {

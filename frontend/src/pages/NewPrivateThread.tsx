@@ -50,7 +50,7 @@ export default function NewPrivateThread() {
 
   return (
     <PostComposer
-      mode="message"
+      mode="thread"
       submitText="הודעה פרטית"
       disabled={createThreadMutation.isPending}
       onSubmit={(item: Post) => {

@@ -22,6 +22,7 @@ type privateThread struct {
 	ID            int64      `json:"id"`
 	Title         *string    `json:"title"`
 	CreatedBy     *string    `json:"created_by"`
+	CreatedByName *string    `json:"created_by_name"`
 	LastMessageAt *time.Time `json:"last_message_at"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
@@ -33,8 +34,9 @@ type privateThreadSummary struct {
 	ParticipantsCount int64 `json:"participants_count"`
 	UnreadCount       int64 `json:"unread_count"`
 
-	LastMessageContent  *string `json:"last_message_content"`
-	LastMessageSenderID *string `json:"last_message_sender_id"`
+	LastMessageContent    *string `json:"last_message_content"`
+	LastMessageSenderID   *string `json:"last_message_sender_id"`
+	LastMessageSenderName *string `json:"last_message_sender_name"`
 }
 
 type privateParticipant struct {
@@ -44,12 +46,13 @@ type privateParticipant struct {
 }
 
 type privateMessage struct {
-	ID        int64     `json:"id"`
-	ThreadID  int64     `json:"thread_id"`
-	SenderID  *string   `json:"sender_id"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         int64     `json:"id"`
+	ThreadID   int64     `json:"thread_id"`
+	SenderID   *string   `json:"sender_id"`
+	SenderName *string   `json:"sender_name"`
+	Content    string    `json:"content"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 func (h *Handler) RegisterPrivateRoutes(mux *http.ServeMux) {
@@ -389,7 +392,6 @@ func (h *Handler) CreatePrivateThread(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /api/private/threads?page=1
-
 func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.privateAuth(w, r)
 	if !ok {
@@ -415,12 +417,16 @@ func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Get private threads with unread count and latest message.
+	// 2. Get private threads with creator name, unread count, and latest message.
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT
 			t.id,
 			t.title,
+
+			-- Thread creator UUID and name.
 			t.created_by::text,
+			creator.name AS created_by_name,
+
 			t.last_message_at,
 			t.created_at,
 			t.updated_at,
@@ -447,20 +453,28 @@ func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
 			-- Latest message preview.
 			latest.content AS last_message_content,
 
-			-- Latest message sender.
-			latest.sender_id::text AS last_message_sender_id
+			-- Latest message sender UUID and name.
+			latest.sender_id::text AS last_message_sender_id,
+			latest.sender_name AS last_message_sender_name
 
 		FROM public.private_thread_participants AS p
 
 		JOIN public.private_threads AS t
 			ON t.id = p.thread_id
 
+		-- Get the thread creator's name.
+		LEFT JOIN public.profiles AS creator
+			ON creator.id = t.created_by
+
 		-- Get the latest message in each conversation.
 		LEFT JOIN LATERAL (
 			SELECT
 				m.content,
-				m.sender_id
+				m.sender_id,
+				profile.name AS sender_name
 			FROM public.private_messages AS m
+			LEFT JOIN public.profiles AS profile
+				ON profile.id = m.sender_id
 			WHERE m.thread_id = t.id
 			ORDER BY m.created_at DESC, m.id DESC
 			LIMIT 1
@@ -496,6 +510,7 @@ func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
 			&t.ID,
 			&t.Title,
 			&t.CreatedBy,
+			&t.CreatedByName,
 			&t.LastMessageAt,
 			&t.CreatedAt,
 			&t.UpdatedAt,
@@ -503,6 +518,7 @@ func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
 			&t.UnreadCount,
 			&t.LastMessageContent,
 			&t.LastMessageSenderID,
+			&t.LastMessageSenderName,
 		)
 
 		if err != nil {
@@ -693,15 +709,17 @@ func (h *Handler) GetPrivateThread(w http.ResponseWriter, r *http.Request) {
 	// 3. Get thread messages
 	rows, err = h.DB.Query(r.Context(), `
 		SELECT
-			id,
-			thread_id,
-			sender_id::text,
-			content,
-			created_at,
-			updated_at
-		FROM public.private_messages
-		WHERE thread_id = $1
-		ORDER BY created_at ASC, id ASC
+			m.id,
+			m.thread_id,
+			m.sender_id::text,
+			profile.name AS sender_name,
+			m.content,
+			m.created_at,
+			m.updated_at
+		FROM public.private_messages AS m
+		LEFT JOIN public.profiles AS profile ON profile.id = m.sender_id
+		WHERE m.thread_id = $1
+		ORDER BY m.created_at ASC, m.id ASC
 	`, threadID)
 
 	if err != nil {
@@ -719,6 +737,7 @@ func (h *Handler) GetPrivateThread(w http.ResponseWriter, r *http.Request) {
 			&m.ID,
 			&m.ThreadID,
 			&m.SenderID,
+			&m.SenderName,
 			&m.Content,
 			&m.CreatedAt,
 			&m.UpdatedAt,
@@ -781,9 +800,10 @@ func (h *Handler) ListPrivateMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT m.id, m.thread_id, m.sender_id::text, m.content,
+		SELECT m.id, m.thread_id, m.sender_id::text, profile.name AS sender_name, m.content,
 		       m.created_at, m.updated_at
 		FROM public.private_messages AS m
+		LEFT JOIN public.profiles AS profile ON profile.id = m.sender_id
 		WHERE m.thread_id = $1
 		  AND EXISTS (
 		    SELECT 1 FROM public.private_thread_participants
@@ -802,7 +822,7 @@ func (h *Handler) ListPrivateMessages(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var m privateMessage
 		if err := rows.Scan(
-			&m.ID, &m.ThreadID, &m.SenderID,
+			&m.ID, &m.ThreadID, &m.SenderID, &m.SenderName,
 			&m.Content, &m.CreatedAt, &m.UpdatedAt,
 		); err != nil {
 			h.privateInternalError(w, "scan private messages", err)
@@ -814,7 +834,6 @@ func (h *Handler) ListPrivateMessages(w http.ResponseWriter, r *http.Request) {
 		h.privateInternalError(w, "iterate private messages", err)
 		return
 	}
-
 	h.privateWriteJSON(w, http.StatusOK, struct {
 		Messages []privateMessage `json:"messages"`
 		Total    int64            `json:"total"`

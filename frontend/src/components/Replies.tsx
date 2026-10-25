@@ -8,6 +8,7 @@ import type { ThreadDetails } from "../types";
 import { deleteReply } from "../fetchMethods/deleteReply";
 import { useQueryClient } from "@tanstack/react-query";
 import FollowButton from "./FollowButton";
+import HtmlContent from "./HtmlContent";
 
 type RepliesProp = {
   replies: ReplyType[];
@@ -133,43 +134,7 @@ export default function Replies({
                       </Link>
                     </span>
                   </div>
-                  <div
-                    className="
-                    [&_a]:text-sky-400
-                    [&_a]:underline
-           [&_ul]:list-disc
-[&_ul]:ps-6
-[&_ul]:list-outside
-
-[&_ol]:list-decimal
-[&_ol]:ps-6
-[&_ol]:list-outside
-
-[&_li]:my-1
-    w-full
-    max-w-full
-    min-w-0
-    overflow-hidden
-
-    [&>div]:w-full
-    [&>div]:max-w-full
-    [&>div]:min-w-0
-
-    [&_pre]:w-full
-    [&_pre]:max-w-full
-    [&_pre]:min-w-0
-    [&_pre]:overflow-x-auto
-    [&_pre]:whitespace-pre
-
-    [&_code]:block
-    [&_code]:max-w-full
-    [&_code]:min-w-0
-    [&_code]:[direction:ltr]
-  "
-                    dangerouslySetInnerHTML={{
-                      __html: tdetails.content,
-                    }}
-                  />
+                  <HtmlContent html={tdetails.content} />{" "}
                 </div>
                 <div className="flex sm:flex-row flex-col gap-4 items-center justify-between">
                   <div className=" sm:mr-40 mr-20 flex  gap-4  flex-wrap">
@@ -244,52 +209,7 @@ export default function Replies({
               <div className="border-b border-b-gray-500 min-w-0">
                 <h2 className="mb-2 text-lg font-medium">Re:{reply.title}</h2>
 
-                <div
-                  className="
-                   [&_a]:text-sky-400
-                    [&_a]:underline
-                  [&_ul]:list-disc
-[&_ul]:ps-6
-[&_ul]:list-outside
-
-[&_ol]:list-decimal
-[&_ol]:ps-6
-[&_ol]:list-outside
-
-[&_li]:my-1
-          w-full
-          max-w-full
-          min-w-0
-          overflow-hidden
-          text-base
-          mb-6
-          leading-8
-          wrap-anywhere
-          text-gray-100
-
-          [&>div]:max-w-full
-          [&>div]:min-w-0
-
-          [&_p]:max-w-full
-          [&_p]:break-words
-
-          [&_pre]:block
-          [&_pre]:w-full
-          [&_pre]:max-w-full
-          [&_pre]:min-w-0
-          [&_pre]:overflow-x-auto
-          [&_pre]:whitespace-pre
-
-          [&_code]:block
-          [&_code]:max-w-full
-          [&_code]:min-w-0
-          [&_code]:font-mono
-          [&_code]:[direction:ltr]
-        "
-                  dangerouslySetInnerHTML={{
-                    __html: reply.post,
-                  }}
-                />
+                <HtmlContent html={reply.post} />
               </div>
 
               {/* Footer */}

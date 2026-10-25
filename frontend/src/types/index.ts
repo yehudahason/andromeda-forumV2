@@ -111,3 +111,23 @@ export type LatestPost = {
   created_at: string;
   messages_count: number;
 };
+
+export interface PrivateThread {
+  id: number;
+  title: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+
+  last_message_at: string | null;
+  last_message_content?: string | null;
+  last_message_sender_name?: string | null;
+
+  last_read_at?: string | null;
+
+  participants?: {
+    user_id: string;
+    name: string;
+    image_url: string | null;
+  }[];
+}

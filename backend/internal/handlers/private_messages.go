@@ -29,8 +29,12 @@ type privateThread struct {
 
 type privateThreadSummary struct {
 	privateThread
+
 	ParticipantsCount int64 `json:"participants_count"`
 	UnreadCount       int64 `json:"unread_count"`
+
+	LastMessageContent  *string `json:"last_message_content"`
+	LastMessageSenderID *string `json:"last_message_sender_id"`
 }
 
 type privateParticipant struct {
@@ -391,72 +395,146 @@ func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	page, ok := h.privatePage(w, r)
 	if !ok {
 		return
 	}
 
+	// 1. Count user's private threads.
 	var total int64
+
 	err := h.DB.QueryRow(r.Context(), `
-		SELECT COUNT(*) FROM public.private_thread_participants WHERE user_id = $1
+		SELECT COUNT(*)
+		FROM public.private_thread_participants
+		WHERE user_id = $1
 	`, userID).Scan(&total)
+
 	if err != nil {
 		h.privateInternalError(w, "count private threads", err)
 		return
 	}
 
+	// 2. Get private threads with unread count and latest message.
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT
-			t.id, t.title, t.created_by::text, t.last_message_at,
-			t.created_at, t.updated_at,
-			(SELECT COUNT(*) FROM public.private_thread_participants AS others
-			 WHERE others.thread_id = t.id) AS participants_count,
-			(SELECT COUNT(*) FROM public.private_messages AS m
-			 WHERE m.thread_id = t.id
-			   AND m.sender_id IS DISTINCT FROM $1
-			   AND (p.last_read_at IS NULL OR m.created_at > p.last_read_at)
-			) AS unread_count
+			t.id,
+			t.title,
+			t.created_by::text,
+			t.last_message_at,
+			t.created_at,
+			t.updated_at,
+
+			-- Number of participants.
+			(
+				SELECT COUNT(*)
+				FROM public.private_thread_participants AS others
+				WHERE others.thread_id = t.id
+			) AS participants_count,
+
+			-- Number of unread messages from other users.
+			(
+				SELECT COUNT(*)
+				FROM public.private_messages AS m
+				WHERE m.thread_id = t.id
+				  AND m.sender_id IS DISTINCT FROM $1
+				  AND (
+					p.last_read_at IS NULL
+					OR m.created_at > p.last_read_at
+				  )
+			) AS unread_count,
+
+			-- Latest message preview.
+			latest.content AS last_message_content,
+
+			-- Latest message sender.
+			latest.sender_id::text AS last_message_sender_id
+
 		FROM public.private_thread_participants AS p
-		JOIN public.private_threads AS t ON t.id = p.thread_id
+
+		JOIN public.private_threads AS t
+			ON t.id = p.thread_id
+
+		-- Get the latest message in each conversation.
+		LEFT JOIN LATERAL (
+			SELECT
+				m.content,
+				m.sender_id
+			FROM public.private_messages AS m
+			WHERE m.thread_id = t.id
+			ORDER BY m.created_at DESC, m.id DESC
+			LIMIT 1
+		) AS latest ON TRUE
+
 		WHERE p.user_id = $1
-		ORDER BY t.last_message_at DESC NULLS LAST, t.created_at DESC, t.id DESC
+
+		ORDER BY
+			t.last_message_at DESC NULLS LAST,
+			t.created_at DESC,
+			t.id DESC
+
 		LIMIT $2 OFFSET $3
-	`, userID, privatePageSize, (page-1)*privatePageSize)
+	`,
+		userID,
+		privatePageSize,
+		(int64(page)-1)*int64(privatePageSize),
+	)
+
 	if err != nil {
 		h.privateInternalError(w, "query private threads", err)
 		return
 	}
 	defer rows.Close()
 
+	// 3. Scan results.
 	threads := make([]privateThreadSummary, 0)
+
 	for rows.Next() {
 		var t privateThreadSummary
+
 		err := rows.Scan(
-			&t.ID, &t.Title, &t.CreatedBy, &t.LastMessageAt,
-			&t.CreatedAt, &t.UpdatedAt, &t.ParticipantsCount, &t.UnreadCount,
+			&t.ID,
+			&t.Title,
+			&t.CreatedBy,
+			&t.LastMessageAt,
+			&t.CreatedAt,
+			&t.UpdatedAt,
+			&t.ParticipantsCount,
+			&t.UnreadCount,
+			&t.LastMessageContent,
+			&t.LastMessageSenderID,
 		)
+
 		if err != nil {
 			h.privateInternalError(w, "scan private threads", err)
 			return
 		}
+
 		threads = append(threads, t)
 	}
+
 	if err := rows.Err(); err != nil {
 		h.privateInternalError(w, "iterate private threads", err)
 		return
 	}
 
+	// 4. Return JSON.
 	h.privateWriteJSON(w, http.StatusOK, struct {
 		Threads []privateThreadSummary `json:"threads"`
 		Total   int64                  `json:"total"`
 		Page    int                    `json:"page"`
 		PerPage int                    `json:"per_page"`
-	}{Threads: threads, Total: total, Page: page, PerPage: privatePageSize})
+	}{
+		Threads: threads,
+		Total:   total,
+		Page:    page,
+		PerPage: privatePageSize,
+	})
 }
 
 // GET /api/private/threads/{id}
-
-func (h *Handler) GetPrivateThread(w http.ResponseWriter, r *http.Request) {
+// Get just thread without its messages
+func (h *Handler) GetJustPrivateThread(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return
@@ -520,6 +598,153 @@ func (h *Handler) GetPrivateThread(w http.ResponseWriter, r *http.Request) {
 		Thread       privateThread        `json:"thread"`
 		Participants []privateParticipant `json:"participants"`
 	}{Thread: thread, Participants: participants})
+}
+
+// GET /api/private/threads/{id}
+// Get Private Thread and all its private messages
+func (h *Handler) GetPrivateThread(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.privateAuth(w, r)
+	if !ok {
+		return
+	}
+
+	threadID, ok := h.privatePathID(w, r)
+	if !ok {
+		return
+	}
+
+	// 1. Get thread details
+	var thread privateThread
+
+	err := h.DB.QueryRow(r.Context(), `
+		SELECT
+			t.id,
+			t.title,
+			t.created_by::text,
+			t.last_message_at,
+			t.created_at,
+			t.updated_at
+		FROM public.private_threads AS t
+		JOIN public.private_thread_participants AS member
+			ON member.thread_id = t.id
+			AND member.user_id = $2
+		WHERE t.id = $1
+	`, threadID, userID).Scan(
+		&thread.ID,
+		&thread.Title,
+		&thread.CreatedBy,
+		&thread.LastMessageAt,
+		&thread.CreatedAt,
+		&thread.UpdatedAt,
+	)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		http.Error(w, "Conversation not found", http.StatusNotFound)
+		return
+	}
+
+	if err != nil {
+		h.privateInternalError(w, "get private thread", err)
+		return
+	}
+
+	// 2. Get participants
+	rows, err := h.DB.Query(r.Context(), `
+		SELECT
+			user_id::text,
+			joined_at,
+			last_read_at
+		FROM public.private_thread_participants
+		WHERE thread_id = $1
+		ORDER BY joined_at, user_id
+	`, threadID)
+
+	if err != nil {
+		h.privateInternalError(w, "list private participants", err)
+		return
+	}
+
+	participants := make([]privateParticipant, 0)
+
+	for rows.Next() {
+		var p privateParticipant
+
+		if err := rows.Scan(
+			&p.UserID,
+			&p.JoinedAt,
+			&p.LastReadAt,
+		); err != nil {
+			rows.Close()
+			h.privateInternalError(w, "scan private participants", err)
+			return
+		}
+
+		participants = append(participants, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		h.privateInternalError(w, "iterate private participants", err)
+		return
+	}
+
+	rows.Close()
+
+	// 3. Get thread messages
+	rows, err = h.DB.Query(r.Context(), `
+		SELECT
+			id,
+			thread_id,
+			sender_id::text,
+			content,
+			created_at,
+			updated_at
+		FROM public.private_messages
+		WHERE thread_id = $1
+		ORDER BY created_at ASC, id ASC
+	`, threadID)
+
+	if err != nil {
+		h.privateInternalError(w, "get private messages", err)
+		return
+	}
+	defer rows.Close()
+
+	messages := make([]privateMessage, 0)
+
+	for rows.Next() {
+		var m privateMessage
+
+		if err := rows.Scan(
+			&m.ID,
+			&m.ThreadID,
+			&m.SenderID,
+			&m.Content,
+			&m.CreatedAt,
+			&m.UpdatedAt,
+		); err != nil {
+			h.privateInternalError(w, "scan private messages", err)
+			return
+		}
+
+		messages = append(messages, m)
+	}
+
+	if err := rows.Err(); err != nil {
+		h.privateInternalError(w, "iterate private messages", err)
+		return
+	}
+
+	// 4. Return JSON
+	h.privateWriteJSON(w, http.StatusOK, struct {
+		Thread       privateThread        `json:"thread"`
+		Participants []privateParticipant `json:"participants"`
+		Messages     []privateMessage     `json:"messages"`
+	}{
+		Thread:       thread,
+		Participants: participants,
+		Messages:     messages,
+	})
 }
 
 // GET /api/private/threads/{id}/messages?page=1

@@ -20,6 +20,7 @@ import { supabase } from "./lib/supabase";
 import { getMe } from "./lib/getMe";
 import AuthPage from "./pages/AuthPage";
 import NewPrivateThread from "./pages/NewPrivateThread";
+import PrivateInbox from "./pages/PrivateInbox";
 
 export default function App() {
   // const navigate = useNavigate();
@@ -88,6 +89,7 @@ export default function App() {
       <Route path="/privatethread/:userid" element={<NewPrivateThread />} />
       <Route path="/privatemessage/:tid" element={<NewPrivateMessage />} />
       <Route path="/forum/:f/:t" element={<ThreadPage />} />
+      <Route path="/inbox/" element={<PrivateInbox />} />
       <Route
         path="/post/:f"
         element={

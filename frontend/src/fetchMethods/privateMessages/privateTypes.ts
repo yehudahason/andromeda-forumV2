@@ -7,10 +7,25 @@ export type PrivateThread = {
   updated_at: string;
 };
 
-export type PrivateThreadSummary = PrivateThread & {
+export interface PrivateThreadSummary {
+  id: number;
+  title: string | null;
+  created_by: string | null;
+  last_message_at: string | null;
+  created_at: string;
+  updated_at: string;
   participants_count: number;
   unread_count: number;
-};
+  last_message_content?: string | null;
+  last_message_sender_id?: string | null;
+}
+
+export interface PrivateThreadListResponse {
+  threads: PrivateThreadSummary[];
+  total: number;
+  page: number;
+  per_page: number;
+}
 
 export type PrivateParticipant = {
   user_id: string;
@@ -33,10 +48,6 @@ export type PrivatePaginated<T, K extends string> = {
   per_page: number;
 } & Record<K, T[]>;
 
-export type PrivateThreadListResponse = PrivatePaginated<
-  PrivateThreadSummary,
-  "threads"
->;
 export type PrivateMessagesResponse = PrivatePaginated<
   PrivateMessage,
   "messages"

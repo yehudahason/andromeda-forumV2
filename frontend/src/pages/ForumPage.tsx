@@ -21,8 +21,8 @@ export default function ForumPage() {
   const total = data?.total ?? 0;
   const forumName = data?.forum_name ?? "";
   useEffect(() => {
-    console.log(threads);
-  }, [threads]);
+    console.log(data);
+  }, [data]);
   if (isLoading) {
     return (
       <div className="text-amber-300  mt-12 text-2xl text-center">טוען...</div>

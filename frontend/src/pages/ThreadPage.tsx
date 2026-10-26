@@ -66,7 +66,9 @@ export default function ThreadPage() {
   const replies: ReplyType[] | undefined = data?.replies;
   const total: number | undefined = data?.total;
   const tdetails: ThreadDetails | undefined = data2;
-
+  useEffect(() => {
+    console.log(data);
+  }, [data]);
   if (isLoading || isLoading2) {
     return (
       <div className="text-amber-300  mt-12 text-2xl text-center">טוען...</div>

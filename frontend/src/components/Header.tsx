@@ -231,7 +231,7 @@ export default function Header() {
                     </li>
                     <li className="flex flex-row justify-center items-center text-sky-400 px-4 py-6">
                       <a
-                        href="#"
+                        href="/inbox"
                         className=" flex flex-row justify-center items-center rounded-md gap-2 hover:bg-neutral-500"
                       >
                         <img src={`${baseUrl}menu_sky.png`} alt="" />

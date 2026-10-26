@@ -201,19 +201,19 @@ export default function Replies({
               </span>
             </div>
 
-            <div className="flex flex-col flex-1 min-w-0">
+            <div className="flex flex-col justify-between flex-1 min-w-0">
               <p className="w-full text-right text-sm text-gray-200">
                 {formatDateFull(reply.created_at)}
               </p>
 
-              <div className="border-b border-b-gray-500 min-w-0">
+              <div className=" min-w-0">
                 <h2 className="mb-2 text-lg font-medium">Re:{reply.title}</h2>
 
                 <HtmlContent html={reply.post} />
               </div>
 
               {/* Footer */}
-              <div className="mt-4 w-full flex items-center justify-between">
+              <div className="mt-4 w-full border-t pt-4 border-t-gray-500 flex items-center justify-between">
                 <div className="flex items-center gap-8">
                   {/* Quote */}
                   <button

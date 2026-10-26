@@ -2,8 +2,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { formatDateFull } from "../utils/formatDateFull";
 import { getPrivateThreads } from "../fetchMethods/privateMessages/getPrivateThreads";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 // import type { PrivateThread } from "../types/index";
+import Pagination from "../components/Paginatiom";
 
 function stripHTML(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -31,7 +32,9 @@ export default function PrivateInbox() {
   // Your Go backend returns:
   // { threads, total, page, per_page }
 
-  const threads = data?.threads ?? [];
+  const threads = useMemo(() => {
+    return data?.threads ?? [];
+  }, [data]);
 
   const total = data?.total ?? 0;
   const perPage = data?.per_page ?? 14;
@@ -80,56 +83,68 @@ export default function PrivateInbox() {
   }
 
   return (
-    <main dir="rtl" className="mx-auto max-w-4xl px-4 py-6">
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">הודעות פרטיות</h1>
+    <>
+      <main dir="rtl" className="mx-auto max-w-4xl px-4 py-6">
+        {totalPages && (
+          <div className="flex h-fit items-center justify-between border-b  border-white/15 ">
+            <Pagination
+              total={total}
+              currentPage={page}
+              onPageChange={changePage}
+            />
+          </div>
+        )}
+        {/* Header */}
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl py-4 text-white font-bold">
+              הודעות פרטיות
+            </h1>
 
-          <p className="mt-1 text-sm text-gray-500">
-            {total} שיחות
-            {unreadCount > 0 && (
-              <span className="mr-2 text-blue-600">
-                • {unreadCount} הודעות שלא נקראו בעמוד זה
-              </span>
-            )}
-          </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {total} שיחות
+              {unreadCount > 0 && (
+                <span className="mr-2 text-blue-600">
+                  • {unreadCount} הודעות שלא נקראו בעמוד זה
+                </span>
+              )}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="rounded-lg border px-4 py-2 hover:bg-gray-100"
+          >
+            רענן
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void refetch()}
-          className="rounded-lg border px-4 py-2 hover:bg-gray-100"
-        >
-          רענן
-        </button>
-      </div>
+        {/* Empty inbox */}
+        {sortedThreads.length === 0 ? (
+          <div className="rounded-xl border p-10 text-center">
+            <h2 className="text-lg font-semibold">
+              {total === 0 ? "אין הודעות פרטיות" : "אין שיחות בעמוד זה"}
+            </h2>
 
-      {/* Empty inbox */}
-      {sortedThreads.length === 0 ? (
-        <div className="rounded-xl border p-10 text-center">
-          <h2 className="text-lg font-semibold">
-            {total === 0 ? "אין הודעות פרטיות" : "אין שיחות בעמוד זה"}
-          </h2>
+            <p className="mt-2 text-gray-500">
+              {total === 0
+                ? "השיחות הפרטיות שלך יופיעו כאן."
+                : "נסה לעבור לעמוד אחר."}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border">
+            {sortedThreads.map((thread) => {
+              const unread = thread.unread_count > 0;
 
-          <p className="mt-2 text-gray-500">
-            {total === 0
-              ? "השיחות הפרטיות שלך יופיעו כאן."
-              : "נסה לעבור לעמוד אחר."}
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border">
-          {sortedThreads.map((thread) => {
-            const unread = thread.unread_count > 0;
+              const title = thread.title?.trim() || `שיחה #${thread.id}`;
 
-            const title = thread.title?.trim() || `שיחה #${thread.id}`;
-
-            return (
-              <Link
-                key={thread.id}
-                to={`/private/${thread.id}`}
-                className={`
+              return (
+                <Link
+                  key={thread.id}
+                  to={`/private/${thread.id}`}
+                  className={`
                   flex items-center gap-4
                   border-b p-4
                   transition-colors
@@ -137,109 +152,86 @@ export default function PrivateInbox() {
                   hover:bg-gray-50
                   ${unread ? "bg-blue-50" : "bg-white"}
                 `}
-              >
-                {/* Avatar */}
-                <div
-                  className="
+                >
+                  {/* Avatar */}
+                  <div
+                    className="
                     flex h-12 w-12 shrink-0
                     items-center justify-center
                     rounded-full bg-gray-200
                     text-lg font-semibold
                     text-gray-600
                   "
-                >
-                  {title.charAt(0)}
-                </div>
+                  >
+                    {title.charAt(0)}
+                  </div>
 
-                {/* Conversation details */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h2
-                      className={`
+                  {/* Conversation details */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h2
+                        className={`
                         truncate text-base
                         ${unread ? "font-bold" : "font-medium"}
                       `}
-                    >
-                      {title}
-                    </h2>
+                      >
+                        {title}
+                      </h2>
 
-                    {/* Unread badge */}
-                    {unread && (
-                      <span
-                        className="
+                      {/* Unread badge */}
+                      {unread && (
+                        <span
+                          className="
                           rounded-full bg-blue-600
                           px-2 py-0.5
                           text-xs font-semibold text-white
                         "
-                      >
-                        {thread.unread_count}
-                      </span>
-                    )}
-                  </div>
+                        >
+                          {thread.unread_count}
+                        </span>
+                      )}
+                    </div>
 
-                  {/* Latest message */}
-                  <p
-                    className={`
+                    {/* Latest message */}
+                    <p
+                      className={`
                       mt-1 truncate text-sm
                       ${unread ? "font-medium text-gray-800" : "text-gray-500"}
                     `}
-                  >
-                    {stripHTML(thread?.last_message_content ?? "") ??
-                      "אין הודעות להצגה"}
-                  </p>
+                    >
+                      {stripHTML(thread?.last_message_content ?? "") ??
+                        "אין הודעות להצגה"}
+                    </p>
 
-                  {/* Participants */}
-                  <p className="mt-1 text-xs text-gray-400">
-                    {thread.participants_count} משתתפים
-                  </p>
-                </div>
+                    {/* Participants */}
+                    <p className="mt-1 text-xs text-gray-400">
+                      {thread.participants_count} משתתפים
+                    </p>
+                  </div>
 
-                {/* Date */}
-                <div className="shrink-0 text-xs text-gray-500">
-                  {formatDateFull(thread.last_message_at ?? thread.created_at)}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+                  {/* Date */}
+                  <div className="shrink-0 text-xs text-gray-500">
+                    {formatDateFull(
+                      thread.last_message_at ?? thread.created_at,
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="mt-6 flex items-center justify-center gap-4">
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => changePage(page - 1)}
-            className="
-              rounded-lg border px-4 py-2
-              hover:bg-gray-100
-              disabled:cursor-not-allowed
-              disabled:opacity-40
-            "
-          >
-            הקודם
-          </button>
-
-          <span className="text-sm text-gray-600">
-            עמוד {page} מתוך {totalPages}
-          </span>
-
-          <button
-            type="button"
-            disabled={page >= totalPages}
-            onClick={() => changePage(page + 1)}
-            className="
-              rounded-lg border px-4 py-2
-              hover:bg-gray-100
-              disabled:cursor-not-allowed
-              disabled:opacity-40
-            "
-          >
-            הבא
-          </button>
-        </div>
-      )}
-    </main>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex h-fit items-center justify-between border-b  border-white/15 ">
+            <Pagination
+              total={total}
+              currentPage={page}
+              onPageChange={changePage}
+            />
+          </div>
+        )}
+      </main>
+    </>
   );
 }

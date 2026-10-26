@@ -4,7 +4,7 @@ import ThreadList from "../components/ThreadList";
 import { getThreads } from "../fetchMethods/getThreads";
 import type { ThreadType } from "../types";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 export default function ForumPage() {
   const { f } = useParams();
   const [searchParams] = useSearchParams();
@@ -15,7 +15,9 @@ export default function ForumPage() {
     queryFn: () => getThreads(f, Number(page ?? "1")),
   });
 
-  const threads: ThreadType[] = data?.threads ?? [];
+  const threads: ThreadType[] = useMemo(() => {
+    return data?.threads ?? [];
+  }, [data]);
   const total = data?.total ?? 0;
   const forumName = data?.forum_name ?? "";
   useEffect(() => {

@@ -2,7 +2,8 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getPrivateMessages } from "../fetchMethods/privateMessages/";
 import HtmlContent from "../components/HtmlContent";
-import { useEffect } from "react";
+// import { useEffect } from "react";
+import Pagination from "../components/Paginatiom";
 
 export default function PrivateMessagesPage() {
   const { tid } = useParams<{ tid: string }>();
@@ -21,6 +22,7 @@ export default function PrivateMessagesPage() {
     enabled: validThreadID,
   });
 
+  const total = data?.total ?? 1;
   // Calculate total pages
   const totalPages = data ? Math.ceil(data.total / data.per_page) : 0;
 
@@ -35,9 +37,6 @@ export default function PrivateMessagesPage() {
       return next;
     });
   }
-  useEffect(() => {
-    console.log(data?.messages);
-  }, [data]);
 
   if (!validThreadID) {
     return <div>מזהה שיחה לא תקין</div>;
@@ -56,7 +55,20 @@ export default function PrivateMessagesPage() {
   }
 
   return (
-    <div dir="rtl" className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
+    <div
+      dir="rtl"
+      className="mx-auto  text-white flex w-full max-w-4xl flex-col gap-4 p-4"
+    >
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex h-fit  items-center justify-between border-b mb-4 border-white/15 ">
+          <Pagination
+            total={total}
+            currentPage={page}
+            onPageChange={changePage}
+          />
+        </div>
+      )}
       <h1 className="text-2xl font-bold">הודעות פרטיות</h1>
 
       {isFetching && <p className="text-sm text-gray-400">מעדכן הודעות...</p>}
@@ -93,28 +105,12 @@ export default function PrivateMessagesPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="mt-6 flex items-center justify-center gap-4">
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => changePage(page - 1)}
-            className="rounded bg-gray-800 px-4 py-2 text-white disabled:opacity-40"
-          >
-            הקודם
-          </button>
-
-          <span>
-            עמוד {page} מתוך {totalPages}
-          </span>
-
-          <button
-            type="button"
-            disabled={page >= totalPages}
-            onClick={() => changePage(page + 1)}
-            className="rounded bg-gray-800 px-4 py-2 text-white disabled:opacity-40"
-          >
-            הבא
-          </button>
+        <div className="flex h-fit  items-center justify-between border-b mb-4 border-white/15 ">
+          <Pagination
+            total={total}
+            currentPage={page}
+            onPageChange={changePage}
+          />
         </div>
       )}
     </div>

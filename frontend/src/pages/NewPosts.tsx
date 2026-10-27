@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { GetAvatar } from "../utils/GetAvatar";
 // import { formatDateFull } from "../utils/formatDateFull";
 import { formatDate } from "../utils/formatDate";
+import HtmlContent from "../components/HtmlContent";
 export default function NewPosts() {
   const baseUrl = import.meta.env.BASE_URL;
   const navigate = useNavigate();
@@ -102,44 +103,8 @@ export default function NewPosts() {
                 </div>
               </div>
               <div className="mt-2 text-lg text-white">
-                <div
-                  className="
-      [&_a]:text-sky-400
-      [&_a]:underline
-
-      [&_ul]:list-disc
-      [&_ul]:ps-6
-      [&_ul]:list-outside
-
-      [&_ol]:list-decimal
-      [&_ol]:ps-6
-      [&_ol]:list-outside
-
-      [&_li]:my-1
-
-      w-full
-      max-w-full
-      min-w-0
-      overflow-hidden
-
-      [&>div]:w-full
-      [&>div]:max-w-full
-      [&>div]:min-w-0
-
-      [&_pre]:w-full
-      [&_pre]:max-w-full
-      [&_pre]:min-w-0
-      [&_pre]:overflow-x-auto
-      [&_pre]:whitespace-pre
-
-      [&_code]:block
-      [&_code]:max-w-full
-      [&_code]:min-w-0
-      [&_code]:[direction:ltr]
-    "
-                  dangerouslySetInnerHTML={{
-                    __html: truncateHtml(item.last_reply_content, 150),
-                  }}
+                <HtmlContent
+                  html={truncateHtml(item.last_reply_content, 150)}
                 />
               </div>
               <div className="flex sm:flex-row flex-col  gap-2 items-center">

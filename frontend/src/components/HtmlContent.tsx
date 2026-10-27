@@ -15,7 +15,7 @@ export default function HtmlContent({
       className={`
         [&_a]:text-sky-400
         [&_a]:underline
-
+break-all
         [&_ul]:list-disc
         [&_ul]:ps-6
         [&_ul]:list-outside

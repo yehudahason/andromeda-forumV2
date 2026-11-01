@@ -49,6 +49,7 @@ type privateParticipant struct {
 type privateMessage struct {
 	ID          int64     `json:"id"`
 	ThreadID    int64     `json:"thread_id"`
+	ThreadTitle string    `json:"thread_title"`
 	SenderID    *string   `json:"sender_id"`
 	SenderName  *string   `json:"sender_name"`
 	SenderImage *string   `json:"sender_image"`
@@ -585,23 +586,35 @@ func (h *Handler) ListPrivateMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT m.id,
-			 m.thread_id,
-			m.sender_id::text, 
-			profile.name AS sender_name,
-			profile.image_url AS sender_image,
-			m.content,
-		       m.created_at, m.updated_at
-		FROM public.private_messages AS m
-		LEFT JOIN public.profiles AS profile ON profile.id = m.sender_id
-		WHERE m.thread_id = $1
-		  AND EXISTS (
-		    SELECT 1 FROM public.private_thread_participants
-		    WHERE thread_id = $1 AND user_id = $2
-		  )
-		ORDER BY m.created_at ASC, m.id ASC
-		LIMIT $3 OFFSET $4
-	`, threadID, userID, privatePageSize, (page-1)*privatePageSize)
+			SELECT
+				m.id,
+				m.thread_id,
+				t.title,
+				COALESCE(m.sender_id::text, '') AS sender_id,
+				COALESCE(profile.name, '') AS sender_name,
+				COALESCE(profile.image_url, '') AS sender_image,
+				m.content,
+				m.created_at,
+				m.updated_at
+			FROM public.private_messages AS m
+
+			LEFT JOIN public.profiles AS profile
+				ON profile.auth_user_id = m.sender_id
+
+			LEFT JOIN public.private_threads AS t
+				ON t.id = m.thread_id
+
+			WHERE m.thread_id = $1
+				AND EXISTS (
+					SELECT 1
+					FROM public.private_thread_participants AS p
+					WHERE p.thread_id = m.thread_id
+					AND p.user_id = $2
+				)
+
+			ORDER BY m.created_at ASC, m.id ASC
+
+			LIMIT $3 OFFSET $4;`, threadID, userID, privatePageSize, (page-1)*privatePageSize)
 	if err != nil {
 		h.privateInternalError(w, "query private messages", err)
 		return
@@ -612,7 +625,7 @@ func (h *Handler) ListPrivateMessages(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var m privateMessage
 		if err := rows.Scan(
-			&m.ID, &m.ThreadID, &m.SenderID, &m.SenderName,
+			&m.ID, &m.ThreadID, &m.ThreadTitle, &m.SenderID, &m.SenderName,
 			&m.SenderImage,
 			&m.Content, &m.CreatedAt, &m.UpdatedAt,
 		); err != nil {

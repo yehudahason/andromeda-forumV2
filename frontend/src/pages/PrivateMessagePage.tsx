@@ -81,23 +81,32 @@ export default function PrivateMessagesPage() {
         {data?.messages.length === 0 ? (
           <p className="text-center text-gray-500">אין הודעות להצגה</p>
         ) : (
-          data?.messages.map((message) => (
-            <div
-              key={message.id}
-              className="flex items-center gap-4 rounded-lg border border-gray-700 px-2"
-            >
-              <div className="mb-2 py-4 pr-1 flex flex-col justify-center items-center gap-3">
-                <h4 className="whitespace-nowrap">{message.sender_name}</h4>
-                {GetAvatar({
-                  name: message.sender_name,
-                  image: message.sender_image,
-                  size: 40,
-                })}
-              </div>
+          <>
+            {data?.messages.map((message, index) => (
+              <div
+                key={message.id}
+                className="flex  gap-4 rounded-lg border border-gray-700 py-2 px-2"
+              >
+                <div className="mb-2 flex flex-col items-center justify-center gap-3 py-4 pr-1">
+                  <h4 className="whitespace-nowrap">{message.sender_name}</h4>
+                  {GetAvatar({
+                    name: message.sender_name,
+                    image: message.sender_image,
+                    size: 40,
+                  })}
+                </div>
+                <div className="relative flex w-full flex-col justify-center">
+                  {index === 0 && (
+                    <h2 className="absolute top-0 w-full text-center text-xl font-bold whitespace-nowrap">
+                      {data?.messages[0]?.thread_title}
+                    </h2>
+                  )}
 
-              <HtmlContent html={message.content} />
-            </div>
-          ))
+                  <HtmlContent html={message.content} />
+                </div>
+              </div>
+            ))}
+          </>
         )}
       </div>
 

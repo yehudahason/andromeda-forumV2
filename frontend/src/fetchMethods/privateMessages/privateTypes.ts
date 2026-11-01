@@ -38,6 +38,7 @@ export type PrivateParticipant = {
 export type PrivateMessage = {
   id: number;
   thread_id: number;
+  thread_title: string;
   sender_id: string | null;
   sender_name: string;
   sender_image: string;

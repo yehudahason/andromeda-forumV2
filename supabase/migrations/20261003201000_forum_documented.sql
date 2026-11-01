@@ -662,6 +662,8 @@ CREATE INDEX idx_replies_created_at ON replies (created_at DESC);
 
 CREATE INDEX idx_replies_thread_created_at ON replies (thread_id, created_at DESC, id DESC);
 
+CREATE INDEX IF NOT EXISTS idx_private_messages_thread_created
+ON public.private_messages (thread_id, created_at ASC, id ASC);
 -- =========================================================
 -- FORUM INITIAL VALUES
 -- Prevent callers from seeding trigger-maintained aggregate state.

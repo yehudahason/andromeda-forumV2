@@ -12,6 +12,7 @@ export interface PrivateThreadSummary {
   title: string | null;
   created_by: string | null;
   created_by_name: string | null;
+  created_by_image: string | null;
   last_message_at: string | null;
   created_at: string;
   updated_at: string;
@@ -39,6 +40,7 @@ export type PrivateMessage = {
   thread_id: number;
   sender_id: string | null;
   sender_name: string;
+  sender_image: string;
   content: string;
   created_at: string;
   updated_at: string;

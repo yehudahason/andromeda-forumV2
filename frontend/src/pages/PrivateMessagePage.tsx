@@ -1,10 +1,11 @@
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getPrivateMessages } from "../fetchMethods/privateMessages/";
 import HtmlContent from "../components/HtmlContent";
 // import { useEffect } from "react";
 import Pagination from "../components/Paginatiom";
-
+import { GetAvatar } from "../utils/GetAvatar";
+import { useEffect } from "react";
 export default function PrivateMessagesPage() {
   const { tid } = useParams<{ tid: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -21,7 +22,9 @@ export default function PrivateMessagesPage() {
     queryFn: ({ signal }) => getPrivateMessages(threadID, page, signal),
     enabled: validThreadID,
   });
-
+  useEffect(() => {
+    console.log(data);
+  }, [data]);
   const total = data?.total ?? 1;
   // Calculate total pages
   const totalPages = data ? Math.ceil(data.total / data.per_page) : 0;
@@ -81,20 +84,15 @@ export default function PrivateMessagesPage() {
           data?.messages.map((message) => (
             <div
               key={message.id}
-              className="rounded-lg border border-gray-700 p-4"
+              className="flex items-center gap-4 rounded-lg border border-gray-700 px-2"
             >
-              <div className="mb-2 flex justify-between gap-3">
-                <span className="text-sm text-sky-400">
-                  {message.sender_id ?? "משתמש לא ידוע"}
-                </span>
-
-                <time className="text-xs text-gray-400">
-                  {new Date(message.created_at).toLocaleString("he-IL", {
-                    timeZone: "Asia/Jerusalem",
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })}
-                </time>
+              <div className="mb-2 py-4 pr-1 flex flex-col justify-center items-center gap-3">
+                <h4 className="whitespace-nowrap">{message.sender_name}</h4>
+                {GetAvatar({
+                  name: message.sender_name,
+                  image: message.sender_image,
+                  size: 40,
+                })}
               </div>
 
               <HtmlContent html={message.content} />
@@ -102,6 +100,8 @@ export default function PrivateMessagesPage() {
           ))
         )}
       </div>
+
+      <Link to={`/privatemessage/${tid}`}> שלח תגובה</Link>
 
       {/* Pagination */}
       {totalPages > 1 && (

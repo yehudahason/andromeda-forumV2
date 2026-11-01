@@ -116,7 +116,7 @@ export default function AuthPage() {
       provider: "google",
 
       options: {
-        redirectTo: `${window.location.origin}/auth`,
+        redirectTo: `${window.location.origin}`,
       },
     });
 

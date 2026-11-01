@@ -13,11 +13,13 @@ export default function ThreadPage() {
   const [searchParams] = useSearchParams();
   const tpage = searchParams.get("tpage");
   const location = useLocation();
-
+  //Replies
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["replies", f, t, tpage],
     queryFn: () => getReplies(t ?? 1, Number(tpage ?? "1")),
   });
+
+  //Thread info
   const {
     data: data2,
     isLoading: isLoading2,

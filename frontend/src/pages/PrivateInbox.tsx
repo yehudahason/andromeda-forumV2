@@ -5,13 +5,24 @@ import { getPrivateThreads } from "../fetchMethods/privateMessages/getPrivateThr
 import { useEffect, useMemo } from "react";
 // import type { PrivateThread } from "../types/index";
 import Pagination from "../components/Paginatiom";
-
+import { GetAvatar } from "../utils/GetAvatar";
+import { getUserByID } from "../fetchMethods/getUserByID";
 function stripHTML(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
   return doc.body.textContent ?? "";
 }
 
 export default function PrivateInbox() {
+  const { data: user } = useQuery({
+    queryKey: ["user"],
+    queryFn: ({ signal }) =>
+      getUserByID("436c14bd-a1e8-454f-994a-6e6296620775", signal),
+    // enabled: Boolean(userID),
+  });
+
+  useEffect(() => {
+    console.log("from func:", user);
+  }, [user]);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Read page from URL.
@@ -149,23 +160,16 @@ export default function PrivateInbox() {
                   border-b p-4
                   transition-colors
                   last:border-b-0
-                  hover:bg-gray-50
-                  ${unread ? "bg-blue-50" : "bg-white"}
+                  hover:bg-gray-500
+                  ${unread ? "bg-neutral-500" : "bg-neutral-600"}
                 `}
                 >
                   {/* Avatar */}
-                  <div
-                    className="
-                    flex h-12 w-12 shrink-0
-                    items-center justify-center
-                    rounded-full bg-gray-200
-                    text-lg font-semibold
-                    text-gray-600
-                  "
-                  >
-                    {title.charAt(0)}
-                  </div>
-
+                  {GetAvatar({
+                    name: thread.created_by_name ?? "",
+                    image: thread.created_by_image ?? "",
+                    size: 40,
+                  })}
                   {/* Conversation details */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">

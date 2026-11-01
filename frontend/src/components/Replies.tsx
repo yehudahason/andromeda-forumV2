@@ -9,6 +9,7 @@ import { deleteReply } from "../fetchMethods/deleteReply";
 import { useQueryClient } from "@tanstack/react-query";
 import FollowButton from "./FollowButton";
 import HtmlContent from "./HtmlContent";
+import { useUserStore } from "../stores/userStore";
 
 type RepliesProp = {
   replies: ReplyType[];
@@ -31,7 +32,7 @@ export default function Replies({
   const [currentPage, setCurrenpage] = useState(+current);
   const baseUrl = import.meta.env.BASE_URL;
   const queryClient = useQueryClient();
-
+  const { user } = useUserStore();
   function handlePage(page: number) {
     setCurrenpage(page);
     navigate(`/forum/${forum}/${tid}/?tpage=${page}`);
@@ -120,18 +121,7 @@ export default function Replies({
                     </span>
 
                     <span className="flex items-center gap-1 text-sm">
-                      <span>{tdetails.author.replies_count}</span>
-                      <span>{formatDateFull(tdetails.author.created_at)}</span>
-
-                      <Link
-                        title="thread"
-                        to={`/privatethread/${tdetails.author.id}`}
-                      >
-                        💬
-                      </Link>
-                      <Link title="message" to={`/privatemessage/1`}>
-                        💬
-                      </Link>
+                      <span>{tdetails.author.replies_count} 💬</span>
                     </span>
                   </div>
                   <HtmlContent html={tdetails.content} />{" "}
@@ -144,9 +134,19 @@ export default function Replies({
                   </div>
 
                   <div className="flex gap-4 justify-center items-center">
-                    <Link to={`/editThread/${forum}/${tdetails.id}`}>
-                      <img src={`${baseUrl}edit.png`} alt="" />
-                    </Link>
+                    {user?.id !== tdetails.author.id ? (
+                      <Link
+                        className="text-amber-50 p-2 rounded-lg bg-gray-600"
+                        title="thread"
+                        to={`/privatethread/${tdetails.author.id}`}
+                      >
+                        הודעה פרטית
+                      </Link>
+                    ) : (
+                      <Link to={`/editThread/${forum}/${tdetails.id}`}>
+                        <img src={`${baseUrl}edit.png`} alt="" />
+                      </Link>
+                    )}
                     <button className="py-2 px-4 bg-none rounded-lg">
                       שתף
                     </button>
@@ -197,7 +197,6 @@ export default function Replies({
               <span className="flex items-center gap-1 text-sm">
                 {reply.author.replies_count}
                 <span>💬</span>
-                <span>{formatDateFull(reply.author.created_at)}</span>
               </span>
             </div>
 
@@ -225,9 +224,20 @@ export default function Replies({
                       ✓
                     </span>
                   </button>
-                  <Link to={`/editReply/${forum}/${tid}/${reply.id}`}>
-                    <img src={`${baseUrl}edit.png`} alt="" />
-                  </Link>
+
+                  {user?.id !== reply.author.id ? (
+                    <Link
+                      className="text-amber-50 p-2 rounded-lg bg-gray-600"
+                      title="thread"
+                      to={`/privatethread/${reply.author.id}`}
+                    >
+                      הודעה פרטית
+                    </Link>
+                  ) : (
+                    <Link to={`/editReply/${forum}/${tid}/${reply.id}`}>
+                      <img src={`${baseUrl}edit.png`} alt="" />
+                    </Link>
+                  )}
                 </div>
                 {/* Like */}
                 <button

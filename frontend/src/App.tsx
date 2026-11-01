@@ -21,7 +21,7 @@ import { getMe } from "./lib/getMe";
 import AuthPage from "./pages/AuthPage";
 import NewPrivateThread from "./pages/NewPrivateThread";
 import PrivateInbox from "./pages/PrivateInbox";
-import PrivateMessagesPage from "./pages/PrivateMessagePage";
+import PrivateMessagePage from "./pages/PrivateMessagePage";
 
 export default function App() {
   // const navigate = useNavigate();
@@ -91,7 +91,7 @@ export default function App() {
       <Route path="/privatemessage/:tid" element={<NewPrivateMessage />} />
       <Route path="/forum/:f/:t" element={<ThreadPage />} />
       <Route path="/inbox/" element={<PrivateInbox />} />
-      <Route path="/private/:tid" element={<PrivateMessagesPage />} />
+      <Route path="/private/:tid" element={<PrivateMessagePage />} />
       <Route
         path="/post/:f"
         element={

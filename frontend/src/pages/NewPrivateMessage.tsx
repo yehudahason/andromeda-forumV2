@@ -8,7 +8,7 @@ export default function NewPrivateMessage() {
   const { tid } = useParams();
   const queryClient = useQueryClient();
 
-  const createThreadMutation = useMutation({
+  const createMessageMutation = useMutation({
     mutationFn: (item: Post) => {
       if (!tid) {
         throw new Error("Thread ID is missing");
@@ -34,25 +34,25 @@ export default function NewPrivateMessage() {
     },
   });
 
-  if (createThreadMutation.isSuccess) {
-    const response = createThreadMutation.data;
+  if (createMessageMutation.isSuccess) {
+    const response = createMessageMutation.data;
     console.log(response);
-    return <AfterPost success={true} postLink={`${tid}`} />;
+    return <AfterPost success={true} postLink={`/private/${tid}`} />;
   }
 
-  if (createThreadMutation.isError) {
-    return <AfterPost success={false} postLink="" />;
+  if (createMessageMutation.isError) {
+    return <AfterPost success={false} postLink="/" />;
   }
 
   return (
     <PostComposer
       mode="reply"
       submitText="הודעה פרטית"
-      disabled={createThreadMutation.isPending}
+      disabled={createMessageMutation.isPending}
       onSubmit={(item: Post) => {
-        if (createThreadMutation.isPending) return;
+        if (createMessageMutation.isPending) return;
 
-        createThreadMutation.mutate(item);
+        createMessageMutation.mutate(item);
       }}
     />
   );

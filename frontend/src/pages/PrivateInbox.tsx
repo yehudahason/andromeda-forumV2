@@ -112,10 +112,10 @@ export default function PrivateInbox() {
               הודעות פרטיות
             </h1>
 
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-gray-300">
               {total} שיחות
               {unreadCount > 0 && (
-                <span className="mr-2 text-blue-600">
+                <span className="mr-2 text-blue-400">
                   • {unreadCount} הודעות שלא נקראו בעמוד זה
                 </span>
               )}
@@ -145,7 +145,7 @@ export default function PrivateInbox() {
             </p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border">
+          <div className="overflow-hidden flex flex-col gap-2 border">
             {sortedThreads.map((thread) => {
               const unread = thread.unread_count > 0;
 
@@ -156,12 +156,13 @@ export default function PrivateInbox() {
                   key={thread.id}
                   to={`/private/${thread.id}`}
                   className={`
-                  flex items-center gap-4
-                  border-b p-4
+                  flex items-center gap-6
+                   p-4
                   transition-colors
                   last:border-b-0
-                  hover:bg-gray-500
-                  ${unread ? "bg-neutral-500" : "bg-neutral-600"}
+                  text-white
+                  rounded
+                  bg-neutral-600
                 `}
                 >
                   {/* Avatar */}
@@ -172,10 +173,10 @@ export default function PrivateInbox() {
                   })}
                   {/* Conversation details */}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center mb-4">
                       <h2
                         className={`
-                        truncate text-base
+                        truncate text-base pl-4
                         ${unread ? "font-bold" : "font-medium"}
                       `}
                       >
@@ -197,27 +198,24 @@ export default function PrivateInbox() {
                     </div>
 
                     {/* Latest message */}
+
                     <p
                       className={`
                       mt-1 truncate text-sm
-                      ${unread ? "font-medium text-gray-800" : "text-gray-500"}
+                       text-gray-100
+                       mb-2
                     `}
                     >
                       {stripHTML(thread?.last_message_content ?? "") ??
                         "אין הודעות להצגה"}
                     </p>
 
-                    {/* Participants */}
-                    <p className="mt-1 text-xs text-gray-400">
-                      {thread.participants_count} משתתפים
-                    </p>
-                  </div>
-
-                  {/* Date */}
-                  <div className="shrink-0 text-xs text-gray-500">
-                    {formatDateFull(
-                      thread.last_message_at ?? thread.created_at,
-                    )}
+                    {/* Date */}
+                    <div className="shrink-0 text-xs text-gray-300">
+                      {formatDateFull(
+                        thread.last_message_at ?? thread.created_at,
+                      )}
+                    </div>
                   </div>
                 </Link>
               );

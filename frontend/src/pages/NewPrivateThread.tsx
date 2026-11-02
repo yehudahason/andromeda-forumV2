@@ -41,7 +41,7 @@ export default function NewPrivateThread() {
   if (createThreadMutation.isSuccess) {
     const response = createThreadMutation.data;
     console.log(response);
-    return <AfterPost success={true} postLink={`${userid}`} />;
+    return <AfterPost success={true} postLink="/inbox" />;
   }
 
   if (createThreadMutation.isError) {

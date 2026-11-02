@@ -6,6 +6,8 @@ import HtmlContent from "../components/HtmlContent";
 import Pagination from "../components/Paginatiom";
 import { GetAvatar } from "../utils/GetAvatar";
 import { useEffect } from "react";
+import { formatDateFull } from "../utils/formatDateFull";
+import { markPrivateThreadRead } from "../fetchMethods/privateMessages/";
 export default function PrivateMessagesPage() {
   const { tid } = useParams<{ tid: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,7 +26,8 @@ export default function PrivateMessagesPage() {
   });
   useEffect(() => {
     console.log(data);
-  }, [data]);
+    markPrivateThreadRead(threadID);
+  }, [data, threadID]);
   const total = data?.total ?? 1;
   // Calculate total pages
   const totalPages = data ? Math.ceil(data.total / data.per_page) : 0;
@@ -85,7 +88,7 @@ export default function PrivateMessagesPage() {
             {data?.messages.map((message, index) => (
               <div
                 key={message.id}
-                className="flex  gap-4 rounded-lg border border-gray-700 py-2 px-2"
+                className="flex  bg-neutral-600 gap-4 rounded-lg border border-gray-700 py-2 px-2"
               >
                 <div className="mb-2 flex flex-col items-center justify-center gap-3 py-4 pr-1">
                   <h4 className="whitespace-nowrap">{message.sender_name}</h4>
@@ -95,14 +98,17 @@ export default function PrivateMessagesPage() {
                     size: 40,
                   })}
                 </div>
-                <div className="relative flex w-full flex-col justify-center">
+                <div className="relative flex w-full flex-col gap-4 justify-end">
                   {index === 0 && (
-                    <h2 className="absolute top-0 w-full text-center text-xl font-bold whitespace-nowrap">
+                    <h2 className="absolute top-0 w-full pr-4 text-xl font-bold whitespace-nowrap">
                       {data?.messages[0]?.thread_title}
                     </h2>
                   )}
 
                   <HtmlContent html={message.content} />
+                  <p className="text-center text-gray-200">
+                    {formatDateFull(message.created_at)}
+                  </p>
                 </div>
               </div>
             ))}
@@ -110,7 +116,13 @@ export default function PrivateMessagesPage() {
         )}
       </div>
 
-      <Link to={`/privatemessage/${tid}`}> שלח תגובה</Link>
+      <Link
+        className="bg-sky-600 w-fit px-2 py-1 rounded text-neutral-300"
+        to={`/privatemessage/${tid}`}
+      >
+        {" "}
+        שלח תגובה
+      </Link>
 
       {/* Pagination */}
       {totalPages > 1 && (

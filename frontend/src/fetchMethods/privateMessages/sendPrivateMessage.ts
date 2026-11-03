@@ -6,7 +6,7 @@ export function sendPrivateMessage(
   threadID: number,
   content: string,
   signal?: AbortSignal,
-): Promise<PrivateMessage> {
+): Promise<{ privateMessage: PrivateMessage; page: number }> {
   return privateRequest(`/api/private/threads/${threadID}/messages`, {
     method: "POST",
     body: { content },

@@ -40,11 +40,11 @@ type privateThreadSummary struct {
 	LastMessageSenderName *string `json:"last_message_sender_name"`
 }
 
-type privateParticipant struct {
-	UserID     string     `json:"user_id"`
-	JoinedAt   time.Time  `json:"joined_at"`
-	LastReadAt *time.Time `json:"last_read_at"`
-}
+// type privateParticipant struct {
+// 	UserID     string     `json:"user_id"`
+// 	JoinedAt   time.Time  `json:"joined_at"`
+// 	LastReadAt *time.Time `json:"last_read_at"`
+// }
 
 type privateMessage struct {
 	ID          int64     `json:"id"`
@@ -698,7 +698,30 @@ func (h *Handler) SendPrivateMessage(w http.ResponseWriter, r *http.Request) {
 		h.privateInternalError(w, "send private message", err)
 		return
 	}
-	h.privateWriteJSON(w, http.StatusCreated, message)
+	var totalMessages int64
+
+	err = h.DB.QueryRow(r.Context(), `
+	SELECT COUNT(*)
+	FROM public.private_messages
+	WHERE thread_id = $1
+`, threadID).Scan(&totalMessages)
+
+	if err != nil {
+		h.privateInternalError(w, "count private messages", err)
+		return
+	}
+
+	const pageSize = 14
+
+	page := (totalMessages + pageSize - 1) / pageSize
+
+	h.privateWriteJSON(w, http.StatusCreated, struct {
+		privateMessage `json:"privateMessage"`
+		Page           int64 `json:"page"`
+	}{
+		privateMessage: message,
+		Page:           page,
+	})
 }
 
 // PUT /api/private/messages/{id}

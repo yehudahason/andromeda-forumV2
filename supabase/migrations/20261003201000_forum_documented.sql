@@ -389,18 +389,30 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+    v_thread_page BIGINT;
 BEGIN
+    -- Calculate the page containing the new message
+   SELECT CEIL(COUNT(*)::numeric / 14)::BIGINT
+    INTO v_thread_page
+    FROM public.private_messages
+    WHERE thread_id = NEW.thread_id
+        AND (created_at, id) <= (NEW.created_at, NEW.id);
+
+    -- Notify all participants except the sender
     INSERT INTO public.notifications (
         user_id,
         type,
         message_id,
-        actor_id
+        actor_id,
+        thread_page
     )
     SELECT
         p.user_id,
         'private_message',
         NEW.id,
-        NEW.sender_id
+        NEW.sender_id,
+        v_thread_page
     FROM public.private_thread_participants AS p
     WHERE p.thread_id = NEW.thread_id
       AND p.user_id IS DISTINCT FROM NEW.sender_id;

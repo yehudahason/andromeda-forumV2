@@ -25,9 +25,11 @@ export default function PrivateMessagesPage() {
     enabled: validThreadID,
   });
   useEffect(() => {
+    if (!data || !threadID) return;
     console.log(data);
+
     markPrivateThreadRead(threadID);
-  }, [data, threadID]);
+  }, [threadID, data]);
   const total = data?.total ?? 1;
   // Calculate total pages
   const totalPages = data ? Math.ceil(data.total / data.per_page) : 0;

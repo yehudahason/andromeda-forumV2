@@ -170,9 +170,19 @@ export default function Header() {
                         הגדרות התראות
                       </a>
                     </li>
-                    <li className="border-b border-b-gray-400 px-4 py-6 text-white text-center ">
-                      אין התראות להצגה
-                    </li>
+                    {data?.map((item) => {
+                      if (item.type === "thread_reply")
+                        return (
+                          <li key={item.id} className="text-white">
+                            {item.thread_title}
+                          </li>
+                        );
+                    })}
+                    {data?.length === 0 && (
+                      <li className="border-b border-b-gray-400 px-4 py-6 text-white text-center ">
+                        אין התראות להצגה
+                      </li>
+                    )}
                     <li className="flex flex-row justify-center items-center text-sky-400 px-4 py-6">
                       <a
                         href="#"
@@ -233,9 +243,21 @@ export default function Header() {
                         צור הודעה פרטית חדשה
                       </a>
                     </li>
-                    <li className="border-b border-b-gray-400 px-4 py-6 text-white text-center ">
-                      אין הודעות פרטיות להציג
-                    </li>
+
+                    {data?.map((item) => {
+                      if (item.type === "private_message")
+                        return (
+                          <li key={item.id} className="text-white">
+                            {item.actor_name}
+                          </li>
+                        );
+                    })}
+                    {data?.length === 0 && (
+                      <li className="border-b border-b-gray-400 px-4 py-6 text-white text-center ">
+                        אין הודעות פרטיות להציג
+                      </li>
+                    )}
+
                     <li className="flex flex-row justify-center items-center text-sky-400 px-4 py-6">
                       <a
                         href="/inbox"

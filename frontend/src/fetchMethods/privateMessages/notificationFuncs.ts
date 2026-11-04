@@ -2,13 +2,16 @@ import { privateRequest } from "./privateRequest";
 
 export interface Notification {
   id: number;
-  user_id: string;
+  user_id: string; //Who receive message
   type: "thread_reply" | "private_message";
   thread_id: number | null;
   thread_page: number | null;
+  forum_id: number | null;
+  thread_title: string | "";
   reply_id: string | null;
   message_id: number | null;
   actor_id: string | null;
+  actor_name: string | null; //Who sent message
   is_read: boolean;
   created_at: string;
 }

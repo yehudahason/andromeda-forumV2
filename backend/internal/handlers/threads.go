@@ -737,3 +737,19 @@ func (h *Handler) incrementThreadViews(ctx context.Context, threadID int64) erro
 
 	return nil
 }
+
+func (h *Handler) GetThreadTitle(ctx context.Context, threadID int64) (string, error) {
+	var title string
+
+	err := h.DB.QueryRow(ctx, `
+		SELECT title
+		FROM public.threads
+		WHERE id = $1
+	`, threadID).Scan(&title)
+
+	if err != nil {
+		return "", err
+	}
+
+	return title, nil
+}

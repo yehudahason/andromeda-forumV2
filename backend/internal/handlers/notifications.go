@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,16 +20,19 @@ const (
 )
 
 type Notification struct {
-	ID         int64     `json:"id"`
-	UserID     string    `json:"user_id"`
-	Type       string    `json:"type"`
-	ThreadID   *int64    `json:"thread_id"`
-	ThreadPage *int64    `json:"thread_page"`
-	ReplyID    *string   `json:"reply_id"`
-	MessageID  *int64    `json:"message_id"`
-	ActorID    *string   `json:"actor_id"`
-	IsRead     bool      `json:"is_read"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID          int64     `json:"id"`
+	UserID      string    `json:"user_id"`
+	ActorName   string    `json:"actor_name"`
+	Type        string    `json:"type"`
+	ThreadID    *int64    `json:"thread_id"`
+	ForumID     *int64    `json:"forum_id"`
+	ThreadTitle string    `json:"thread_title"`
+	ThreadPage  *int64    `json:"thread_page"`
+	ReplyID     *string   `json:"reply_id"`
+	MessageID   *int64    `json:"message_id"`
+	ActorID     *string   `json:"actor_id"`
+	IsRead      bool      `json:"is_read"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
@@ -39,23 +43,33 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT
-			id,
-			user_id::text,
-			type,
-			thread_id,
-			thread_page,
-			reply_id::text,
-			message_id,
-			actor_id::text,
-			is_read,
-			created_at
-		FROM public.notifications
-		WHERE user_id = $1
-		ORDER BY created_at DESC, id DESC
-	`, user.ID)
+    SELECT
+        n.id,
+        n.user_id::text,
+        COALESCE(p.name, '') AS actor_name,
+        n.type,
+        n.thread_id,
+        n.thread_page,
+        n.reply_id::text,
+        n.message_id,
+        n.actor_id::text,
+        n.is_read,
+        n.created_at,
+        COALESCE(t.title, '') AS thread_title ,
+        f.id AS forum_id
+    FROM public.notifications AS n
+    LEFT JOIN public.threads AS t
+        ON t.id = n.thread_id
+	LEFT JOIN public.forums AS f
+		ON t.forum_id = f.id
+	LEFT JOIN public.profiles AS p
+    	ON p.auth_user_id = n.actor_id  
+	WHERE n.user_id = $1
+    ORDER BY n.created_at DESC, n.id DESC
+`, user.ID)
 
 	if err != nil {
+		slog.Error("Failed to fetch notifications", "error", err)
 		http.Error(w, "Failed to fetch notifications", http.StatusInternalServerError)
 		return
 	}
@@ -69,6 +83,7 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 		err := rows.Scan(
 			&n.ID,
 			&n.UserID,
+			&n.ActorName,
 			&n.Type,
 			&n.ThreadID,
 			&n.ThreadPage,
@@ -77,6 +92,8 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 			&n.ActorID,
 			&n.IsRead,
 			&n.CreatedAt,
+			&n.ThreadTitle,
+			&n.ForumID,
 		)
 
 		if err != nil {
@@ -93,7 +110,10 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(notifications)
+
+	if err := json.NewEncoder(w).Encode(notifications); err != nil {
+		slog.Error("Failed to encode notifications", "error", err)
+	}
 }
 
 func (h *Handler) MarkNotificationRead(w http.ResponseWriter, r *http.Request) {

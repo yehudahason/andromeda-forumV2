@@ -3,11 +3,11 @@ import { Link } from "react-router-dom";
 import { getMe } from "../lib/getMe.ts";
 import { GetAvatar } from "../utils/GetAvatar.tsx";
 import { useNavigate } from "react-router-dom";
-// import { authClient } from "../lib/auth";
+import { useQuery } from "@tanstack/react-query";
 import { useUserStore } from "../stores/userStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { supabase } from "../lib/supabase.ts";
-
+import { getNotifications } from "../fetchMethods/privateMessages/notificationFuncs.ts";
 export default function Header() {
   const [tzurMenu, setTzurMenu] = useState<boolean>(false);
   const [notiMenu, setNotiMenu] = useState<boolean>(false);
@@ -33,7 +33,7 @@ export default function Header() {
     }
   };
 
-  async function getS() {
+  async function getUser() {
     try {
       const res = await getMe();
       console.log(res);
@@ -42,7 +42,14 @@ export default function Header() {
       console.log(error);
     }
   }
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: ({ signal }) => getNotifications(signal),
+  });
 
+  console.log(data);
+  if (isLoading) console.log("Loading:", isLoading);
+  if (error) console.log("Erorr fetching notifications:", error);
   return (
     <div className="flex flex-col">
       <header className="bg-black w-full h-20">
@@ -70,7 +77,7 @@ export default function Header() {
                       setNotiMenu(false);
                       setMailMenu(false);
                       setTzurMenu(!tzurMenu);
-                      getS();
+                      getUser();
                     }}
                     className="cursor-pointer flex items-center gap-1"
                   >
@@ -293,7 +300,7 @@ export default function Header() {
                           </p>
                         </li>
                         <li>
-                          <button onClick={getS}>GET session</button>
+                          <button onClick={getUser}>GET session</button>
                         </li>
                         <li>
                           <button

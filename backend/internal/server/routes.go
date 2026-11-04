@@ -19,6 +19,9 @@ func NewMux(h *handlers.Handler) *http.ServeMux {
 	mux.HandleFunc("GET /api/users/{id}", h.GetUserByIDEndpoint)
 
 	//Authorized endpoints
+	mux.HandleFunc("PUT /api/notifications/read-all", h.MarkAllNotificationsRead)
+	mux.HandleFunc("GET /api/notifications", h.GetNotifications)
+	mux.HandleFunc("PUT /api/notifications/{id}/read", h.MarkNotificationRead)
 	mux.HandleFunc("POST /api/threads/{threadID}/follow", h.FollowThreadHandler)
 	mux.HandleFunc("DELETE /api/threads/{threadID}/follow", h.UnfollowThreadHandler)
 	mux.HandleFunc("GET /api/threads/{threadID}/follow", h.GetThreadFollow)

@@ -3,7 +3,7 @@ import type { HTMLAttributes } from "react";
 interface HtmlContentProps extends HTMLAttributes<HTMLDivElement> {
   html: string;
 }
-
+//Style HTML content for and after PostComposer editor
 export default function HtmlContent({
   html,
   className = "",

@@ -30,7 +30,7 @@ export default function PrivateMessagesPage() {
     queryFn: ({ signal }) => getPrivateMessages(threadID, page, signal),
     enabled: validThreadID,
   });
-
+  //Scroll to id
   useEffect(() => {
     if (!data?.messages.length || !location.hash) return;
 
@@ -40,7 +40,7 @@ export default function PrivateMessagesPage() {
 
     if (element) {
       element.scrollIntoView({
-        behavior: "smooth",
+        // behavior: "smooth",
         block: "center",
       });
     }

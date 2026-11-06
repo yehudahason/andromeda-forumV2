@@ -20,19 +20,20 @@ const (
 )
 
 type Notification struct {
-	ID          int64     `json:"id"`
-	UserID      string    `json:"user_id"`
-	ActorName   string    `json:"actor_name"`
-	Type        string    `json:"type"`
-	ThreadID    *int64    `json:"thread_id"`
-	ForumID     *int64    `json:"forum_id"`
-	ThreadTitle string    `json:"thread_title"`
-	ThreadPage  *int64    `json:"thread_page"`
-	ReplyID     *string   `json:"reply_id"`
-	MessageID   *int64    `json:"message_id"`
-	ActorID     *string   `json:"actor_id"`
-	IsRead      bool      `json:"is_read"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID              int64     `json:"id"`
+	UserID          string    `json:"user_id"`
+	ActorName       string    `json:"actor_name"`
+	Type            string    `json:"type"`
+	ThreadID        *int64    `json:"thread_id"`
+	ForumID         *int64    `json:"forum_id"`
+	ThreadTitle     string    `json:"thread_title"`
+	ThreadPage      *int64    `json:"thread_page"`
+	ReplyID         *string   `json:"reply_id"`
+	MessageID       *int64    `json:"message_id"`
+	PrivateThreadID *int64    `json:"private_thread_id"`
+	ActorID         *string   `json:"actor_id"`
+	IsRead          bool      `json:"is_read"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
@@ -55,16 +56,26 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
         n.actor_id::text,
         n.is_read,
         n.created_at,
-        COALESCE(t.title, '') AS thread_title ,
-        f.id AS forum_id
+        COALESCE(t.title, '') AS thread_title,
+        f.id AS forum_id,
+        pm.thread_id AS private_thread_id
+
     FROM public.notifications AS n
+
     LEFT JOIN public.threads AS t
         ON t.id = n.thread_id
-	LEFT JOIN public.forums AS f
-		ON t.forum_id = f.id
-	LEFT JOIN public.profiles AS p
-    	ON p.auth_user_id = n.actor_id  
-	WHERE n.user_id = $1
+
+    LEFT JOIN public.forums AS f
+        ON t.forum_id = f.id
+
+    LEFT JOIN public.profiles AS p
+        ON p.auth_user_id = n.actor_id
+
+    LEFT JOIN public.private_messages AS pm
+        ON pm.id = n.message_id
+
+    WHERE n.user_id = $1
+
     ORDER BY n.created_at DESC, n.id DESC
 `, user.ID)
 
@@ -94,6 +105,7 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 			&n.CreatedAt,
 			&n.ThreadTitle,
 			&n.ForumID,
+			&n.PrivateThreadID,
 		)
 
 		if err != nil {
@@ -265,3 +277,19 @@ func (h *Handler) NotifyThreadFollowers(
 }
 
 // Follow thread func
+
+func (h *Handler) GetPrivateThreadID(ctx context.Context, messageID int64) (int64, error) {
+	var threadID int64
+
+	err := h.DB.QueryRow(ctx, `
+		SELECT thread_id
+		FROM public.private_messages
+		WHERE id = $1
+	`, messageID).Scan(&threadID)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return threadID, nil
+}

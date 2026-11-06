@@ -6,23 +6,12 @@ import { useEffect, useMemo } from "react";
 // import type { PrivateThread } from "../types/index";
 import Pagination from "../components/Paginatiom";
 import { GetAvatar } from "../utils/GetAvatar";
-import { getUserByID } from "../fetchMethods/getUserByID";
 function stripHTML(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
   return doc.body.textContent ?? "";
 }
 
 export default function PrivateInbox() {
-  const { data: user } = useQuery({
-    queryKey: ["user"],
-    queryFn: ({ signal }) =>
-      getUserByID("436c14bd-a1e8-454f-994a-6e6296620775", signal),
-    // enabled: Boolean(userID),
-  });
-
-  useEffect(() => {
-    console.log("from func:", user);
-  }, [user]);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Read page from URL.
@@ -67,7 +56,7 @@ export default function PrivateInbox() {
     setSearchParams({ page: String(newPage) });
   }
   useEffect(() => {
-    console.log(threads);
+    console.log("thredas:", threads);
   }, [threads]);
   if (isPending) {
     return (
@@ -108,9 +97,7 @@ export default function PrivateInbox() {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl py-4 text-white font-bold">
-              הודעות פרטיות
-            </h1>
+            <h1 className="text-2xl py-4 text-white font-bold">דואר נכנס</h1>
 
             <p className="mt-1 text-sm text-gray-300">
               {total} שיחות

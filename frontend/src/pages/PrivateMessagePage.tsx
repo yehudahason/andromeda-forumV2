@@ -1,4 +1,9 @@
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import {
+  useLocation,
+  Link,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getPrivateMessages } from "../fetchMethods/privateMessages/";
 import HtmlContent from "../components/HtmlContent";
@@ -9,6 +14,7 @@ import { useEffect } from "react";
 import { formatDateFull } from "../utils/formatDateFull";
 import { markPrivateThreadRead } from "../fetchMethods/privateMessages/";
 export default function PrivateMessagesPage() {
+  const location = useLocation();
   const { tid } = useParams<{ tid: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -24,6 +30,21 @@ export default function PrivateMessagesPage() {
     queryFn: ({ signal }) => getPrivateMessages(threadID, page, signal),
     enabled: validThreadID,
   });
+
+  useEffect(() => {
+    if (!data?.messages.length || !location.hash) return;
+
+    const id = decodeURIComponent(location.hash.slice(1));
+
+    const element = document.getElementById(id);
+
+    if (element) {
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [data, location.hash]);
   useEffect(() => {
     if (!data || !threadID) return;
     console.log(data);
@@ -77,7 +98,6 @@ export default function PrivateMessagesPage() {
           />
         </div>
       )}
-      <h1 className="text-2xl font-bold">הודעות פרטיות</h1>
 
       {isFetching && <p className="text-sm text-gray-400">מעדכן הודעות...</p>}
 
@@ -89,6 +109,7 @@ export default function PrivateMessagesPage() {
           <>
             {data?.messages.map((message, index) => (
               <div
+                id={String(message.id)}
                 key={message.id}
                 className="flex  bg-neutral-600 gap-4 rounded-lg border border-gray-700 py-2 px-2"
               >

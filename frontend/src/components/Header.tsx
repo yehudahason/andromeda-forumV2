@@ -174,7 +174,11 @@ export default function Header() {
                       if (item.type === "thread_reply")
                         return (
                           <li key={item.id} className="text-white">
-                            {item.thread_title}
+                            <Link
+                              to={`/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`}
+                            >
+                              {item.thread_title}
+                            </Link>
                           </li>
                         );
                     })}
@@ -248,7 +252,11 @@ export default function Header() {
                       if (item.type === "private_message")
                         return (
                           <li key={item.id} className="text-white">
-                            {item.actor_name}
+                            <Link
+                              to={`private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`}
+                            >
+                              {item.actor_name}
+                            </Link>
                           </li>
                         );
                     })}

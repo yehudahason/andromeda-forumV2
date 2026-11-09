@@ -645,7 +645,7 @@ EXECUTE FUNCTION public.notify_thread_followers();
 
 CREATE INDEX idx_forums_last_post_thread_id ON forums (last_post_thread_id);
 
-CREATE INDEX idx_threads_forum_id ON threads (forum_id);
+
 
 CREATE INDEX idx_threads_user_id ON threads (user_id);
 
@@ -662,11 +662,9 @@ CREATE INDEX idx_threads_forum_sticky_last_post ON threads (
   id DESC
 );
 
-CREATE INDEX idx_threads_notify ON threads (id)
-WHERE
-notify = TRUE;
 
-CREATE INDEX idx_replies_thread_id ON replies (thread_id);
+
+
 
 CREATE INDEX idx_replies_user_id ON replies (user_id);
 
@@ -674,8 +672,48 @@ CREATE INDEX idx_replies_created_at ON replies (created_at DESC);
 
 CREATE INDEX idx_replies_thread_created_at ON replies (thread_id, created_at DESC, id DESC);
 
-CREATE INDEX IF NOT EXISTS idx_private_messages_thread_created
-ON public.private_messages (thread_id, created_at ASC, id ASC);
+
+
+
+
+-- Thread reads: foreign key and cascading deletes
+CREATE INDEX IF NOT EXISTS idx_thread_reads_thread_id
+ON public.thread_reads (thread_id);
+
+-- Notifications: thread deletion
+CREATE INDEX IF NOT EXISTS idx_notifications_thread_id
+ON public.notifications (thread_id)
+WHERE thread_id IS NOT NULL;
+
+-- Notifications: reply deletion
+CREATE INDEX IF NOT EXISTS idx_notifications_reply_id
+ON public.notifications (reply_id)
+WHERE reply_id IS NOT NULL;
+
+-- Notifications: private message deletion
+CREATE INDEX IF NOT EXISTS idx_notifications_message_id
+ON public.notifications (message_id)
+WHERE message_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_notifications_actor_id
+ON public.notifications (actor_id)
+WHERE actor_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_private_messages_sender_id
+ON public.private_messages (sender_id)
+WHERE sender_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_private_threads_created_by
+ON public.private_threads (created_by)
+WHERE created_by IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_threads_last_post_author_id
+ON public.threads (last_post_author_id)
+WHERE last_post_author_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_forums_last_post_author_id
+ON public.forums (last_post_author_id)
+WHERE last_post_author_id IS NOT NULL;
 -- =========================================================
 -- FORUM INITIAL VALUES
 -- Prevent callers from seeding trigger-maintained aggregate state.

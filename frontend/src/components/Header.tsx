@@ -185,6 +185,10 @@ export default function Header() {
                                 await markNotificationRead(item.id);
 
                                 window.location.href = `/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`;
+                                setIsMenu(false);
+                                setNotiMenu(false);
+                                setMailMenu(false);
+                                setTzurMenu(false);
                               }}
                             >
                               {item.thread_title}
@@ -270,6 +274,10 @@ export default function Header() {
                                 await markNotificationRead(item.id);
 
                                 window.location.href = `/private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`;
+                                setIsMenu(false);
+                                setNotiMenu(false);
+                                setMailMenu(false);
+                                setTzurMenu(false);
                               }}
                             >
                               {item.actor_name}

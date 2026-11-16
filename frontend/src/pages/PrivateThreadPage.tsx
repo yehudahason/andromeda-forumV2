@@ -5,14 +5,14 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getPrivateMessages } from "../fetchMethods/privateMessages/";
+import { getPrivateMessages } from "../fetchMethods/privateMessages";
 import HtmlContent from "../components/HtmlContent";
 // import { useEffect } from "react";
 import Pagination from "../components/Paginatiom";
 import { GetAvatar } from "../utils/GetAvatar";
 import { useEffect } from "react";
 import { formatDateFull } from "../utils/formatDateFull";
-import { markPrivateThreadRead } from "../fetchMethods/privateMessages/";
+import { markPrivateThreadRead } from "../fetchMethods/privateMessages";
 export default function PrivateMessagesPage() {
   const location = useLocation();
   const { tid } = useParams<{ tid: string }>();

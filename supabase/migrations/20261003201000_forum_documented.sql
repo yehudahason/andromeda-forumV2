@@ -264,7 +264,7 @@ CREATE TABLE public.notifications (
 
 
     message_id BIGINT ,
-
+--Who trigger notification
     actor_id UUID
         REFERENCES auth.users(id) ON DELETE SET NULL,
 

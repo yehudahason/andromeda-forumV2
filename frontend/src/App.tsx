@@ -21,7 +21,7 @@ import { getMe } from "./lib/getMe";
 import AuthPage from "./pages/AuthPage";
 import NewPrivateThread from "./pages/NewPrivateThread";
 import PrivateInbox from "./pages/PrivateInbox";
-import PrivateMessagePage from "./pages/PrivateMessagePage";
+import PrivateMessagePage from "./pages/PrivateThreadPage";
 
 export default function App() {
   // const navigate = useNavigate();

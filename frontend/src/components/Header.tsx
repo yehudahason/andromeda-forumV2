@@ -8,6 +8,8 @@ import { useUserStore } from "../stores/userStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { supabase } from "../lib/supabase.ts";
 import { getNotifications } from "../fetchMethods/privateMessages/notificationFuncs.ts";
+import { markAllNotificationsRead } from "../fetchMethods/privateMessages/notificationFuncs.ts";
+import { markNotificationRead } from "../fetchMethods/privateMessages/notificationFuncs.ts";
 export default function Header() {
   const [tzurMenu, setTzurMenu] = useState<boolean>(false);
   const [notiMenu, setNotiMenu] = useState<boolean>(false);
@@ -45,6 +47,7 @@ export default function Header() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["notifications"],
     queryFn: ({ signal }) => getNotifications(signal),
+    refetchInterval: 10000,
   });
 
   console.log(data);
@@ -160,25 +163,32 @@ export default function Header() {
                 "
                     >
                       <h3 className="text-white ">התראות</h3>
-                      <a
-                        href=""
+                      <button
+                        onClick={() => markAllNotificationsRead()}
                         className="text-sky-400
                   flex justify-center items-center gap-2
-                  "
+                  active:scale-[0.94] transition-transform duration-150"
                       >
                         <img src={`${baseUrl}settings_sky.png`} alt="" />
-                        הגדרות התראות
-                      </a>
+                        סמן הכל כנקרא
+                      </button>
                     </li>
                     {data?.map((item) => {
                       if (item.type === "thread_reply")
                         return (
                           <li key={item.id} className="text-white">
-                            <Link
-                              to={`/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`}
+                            <a
+                              href={`/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`}
+                              onClick={async (e) => {
+                                e.preventDefault();
+
+                                await markNotificationRead(item.id);
+
+                                window.location.href = `/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`;
+                              }}
                             >
                               {item.thread_title}
-                            </Link>
+                            </a>
                           </li>
                         );
                     })}
@@ -252,11 +262,18 @@ export default function Header() {
                       if (item.type === "private_message")
                         return (
                           <li key={item.id} className="text-white">
-                            <Link
-                              to={`private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`}
+                            <a
+                              href={`/private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`}
+                              onClick={async (e) => {
+                                e.preventDefault();
+
+                                await markNotificationRead(item.id);
+
+                                window.location.href = `/private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`;
+                              }}
                             >
                               {item.actor_name}
-                            </Link>
+                            </a>
                           </li>
                         );
                     })}

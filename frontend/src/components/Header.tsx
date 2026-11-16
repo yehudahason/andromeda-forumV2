@@ -8,8 +8,10 @@ import { useUserStore } from "../stores/userStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { supabase } from "../lib/supabase.ts";
 import { getNotifications } from "../fetchMethods/privateMessages/notificationFuncs.ts";
+import { useQueryClient } from "@tanstack/react-query";
 import { markAllNotificationsRead } from "../fetchMethods/privateMessages/notificationFuncs.ts";
 import { markNotificationRead } from "../fetchMethods/privateMessages/notificationFuncs.ts";
+import { formatDate } from "../utils/formatDate.ts";
 export default function Header() {
   const [tzurMenu, setTzurMenu] = useState<boolean>(false);
   const [notiMenu, setNotiMenu] = useState<boolean>(false);
@@ -20,6 +22,7 @@ export default function Header() {
   const { user, setUser } = useUserStore((state) => state);
   const { setSession } = useSessionStore((state) => state);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const handleSignOut = async () => {
     console.log("1. sign out clicked");
 
@@ -44,13 +47,34 @@ export default function Header() {
       console.log(error);
     }
   }
+  //Getting Notifications
   const { data, isLoading, error } = useQuery({
     queryKey: ["notifications"],
     queryFn: ({ signal }) => getNotifications(signal),
-    refetchInterval: 10000,
+    refetchInterval: 10 * 60 * 1000,
   });
-
+  //To refetch notifications after update
+  const refreshNotifications = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["notifications"],
+    });
+  };
   console.log(data);
+
+  const threadsNotification = data?.filter(
+    (item) => item.type === "thread_reply",
+  );
+  const pMessagesNotification = data?.filter(
+    (item) => item.type === "private_message",
+  );
+
+  const tNotReadLength = threadsNotification?.filter(
+    (item) => !item.is_read,
+  ).length;
+  const pmNotReadLength = pMessagesNotification?.filter(
+    (item) => !item.is_read,
+  ).length;
+
   if (isLoading) console.log("Loading:", isLoading);
   if (error) console.log("Erorr fetching notifications:", error);
   return (
@@ -127,6 +151,11 @@ export default function Header() {
                   </ul>
                 </li>
                 <li className="px-2 relative flex justify-center items-center">
+                  {tNotReadLength && (
+                    <span className="bg-sky-500 px-1.5 py-0 text-white  absolute -top-4 right-1 rounded-full">
+                      {tNotReadLength}
+                    </span>
+                  )}
                   <button
                     onClick={() => {
                       setIsMenu(false);
@@ -164,7 +193,10 @@ export default function Header() {
                     >
                       <h3 className="text-white ">התראות</h3>
                       <button
-                        onClick={() => markAllNotificationsRead()}
+                        onClick={async () => {
+                          await markAllNotificationsRead();
+                          await refreshNotifications();
+                        }}
                         className="text-sky-400
                   flex justify-center items-center gap-2
                   active:scale-[0.94] transition-transform duration-150"
@@ -173,8 +205,8 @@ export default function Header() {
                         סמן הכל כנקרא
                       </button>
                     </li>
-                    {data?.map((item) => {
-                      if (item.type === "thread_reply")
+                    {threadsNotification?.map((item) => {
+                      if (item.type === "thread_reply" && !item.is_read)
                         return (
                           <li key={item.id} className="text-white">
                             <a
@@ -183,7 +215,7 @@ export default function Header() {
                                 e.preventDefault();
 
                                 await markNotificationRead(item.id);
-
+                                await refreshNotifications();
                                 window.location.href = `/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`;
                                 setIsMenu(false);
                                 setNotiMenu(false);
@@ -191,12 +223,17 @@ export default function Header() {
                                 setTzurMenu(false);
                               }}
                             >
-                              {item.thread_title}
+                              <span className="flex items-center gap-4">
+                                <span>{formatDate(item.created_at)}-</span>
+                                <span className="truncate">
+                                  תגובה חדשה {item.thread_title}
+                                </span>
+                              </span>
                             </a>
                           </li>
                         );
                     })}
-                    {data?.length === 0 && (
+                    {tNotReadLength === 0 && (
                       <li className="border-b border-b-gray-400 px-4 py-6 text-white text-center ">
                         אין התראות להצגה
                       </li>
@@ -214,6 +251,11 @@ export default function Header() {
                 </li>
 
                 <li className="px-2 border-l border-l-blue-200  relative flex justify-center items-center">
+                  {pmNotReadLength && (
+                    <span className="bg-amber-200 px-1.5 py-0 text-amber-900  absolute -top-4 right-1 rounded-full">
+                      {pmNotReadLength}
+                    </span>
+                  )}
                   <button
                     onClick={() => {
                       setIsMenu(false);
@@ -262,8 +304,8 @@ export default function Header() {
                       </a>
                     </li>
 
-                    {data?.map((item) => {
-                      if (item.type === "private_message")
+                    {pMessagesNotification?.map((item) => {
+                      if (item.type === "private_message" && !item.is_read)
                         return (
                           <li key={item.id} className="text-white">
                             <a
@@ -272,6 +314,7 @@ export default function Header() {
                                 e.preventDefault();
 
                                 await markNotificationRead(item.id);
+                                await refreshNotifications();
 
                                 window.location.href = `/private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`;
                                 setIsMenu(false);
@@ -280,12 +323,15 @@ export default function Header() {
                                 setTzurMenu(false);
                               }}
                             >
-                              {item.actor_name}
+                              <span className="flex items-center gap-4">
+                                <span>{formatDate(item.created_at)}-</span>
+                                <span>קיבלת הודעה מ-{item.actor_name}</span>
+                              </span>
                             </a>
                           </li>
                         );
                     })}
-                    {data?.length === 0 && (
+                    {pmNotReadLength === 0 && (
                       <li className="border-b border-b-gray-400 px-4 py-6 text-white text-center ">
                         אין הודעות פרטיות להציג
                       </li>

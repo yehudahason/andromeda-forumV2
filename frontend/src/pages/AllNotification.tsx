@@ -1,12 +1,15 @@
 import { useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getNotifications } from "../fetchMethods/privateMessages/notificationFuncs";
 import { useEffect, useMemo } from "react";
 import Pagination from "../components/Paginatiom";
 // import { GetAvatar } from "../utils/GetAvatar";
+import { formatDate } from "../utils/formatDate";
+import { markNotificationRead } from "../fetchMethods/privateMessages/notificationFuncs";
 
 export default function AllNotification() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
 
   // Read page from URL.
   const rawPage = Number(searchParams.get("page") ?? "1");
@@ -19,11 +22,11 @@ export default function AllNotification() {
     refetchInterval: 10 * 60 * 1000,
   });
   //To refetch notifications after update
-  // const refreshNotifications = async () => {
-  //   await queryClient.invalidateQueries({
-  //     queryKey: ["notifications"],
-  //   });
-  // };
+  const refreshNotifications = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["notifications"],
+    });
+  };
 
   const notifications = useMemo(() => {
     return data?.notifications ?? [];
@@ -83,7 +86,50 @@ export default function AllNotification() {
         </div>
         <ul>
           {notifications.map((item) => {
-            return <li className="text-white">{item.actor_name}</li>;
+            if (item.type === "thread_reply")
+              return (
+                <li className="text-white">
+                  <a
+                    href={`/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`}
+                    onClick={async (e) => {
+                      e.preventDefault();
+
+                      await markNotificationRead(item.id);
+                      await refreshNotifications();
+                      window.location.href = `/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`;
+                    }}
+                  >
+                    <span className="flex items-center gap-4">
+                      <span>{formatDate(item.created_at)}-</span>
+                      <span className="truncate">
+                        תגובה בדיון - {item.thread_title}
+                      </span>
+                    </span>
+                  </a>
+                </li>
+              );
+            else {
+              return (
+                <li className="text-white">
+                  <a
+                    href={`/private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`}
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      await markNotificationRead(item.id);
+                      await refreshNotifications();
+
+                      window.location.href = `/private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`;
+                    }}
+                  >
+                    {" "}
+                    <span className="flex items-center gap-4">
+                      <span>{formatDate(item.created_at)}-</span>
+                      <span>קיבלת הודעה מ-{item.actor_name}</span>
+                    </span>
+                  </a>
+                </li>
+              );
+            }
           })}
         </ul>
         {totalPages > 1 && (

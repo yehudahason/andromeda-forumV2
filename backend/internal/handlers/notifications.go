@@ -57,7 +57,7 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	//Total notification per user
+	//Total notification
 	var total int64
 
 	err = h.DB.QueryRow(

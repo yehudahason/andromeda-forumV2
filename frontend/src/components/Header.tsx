@@ -52,7 +52,7 @@ export default function Header() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["notifications"],
     queryFn: ({ signal }) => getNotifications(1, signal),
-    refetchInterval: 10 * 60 * 1000,
+    refetchInterval: 60 * 1000,
   });
   //To refetch notifications after update
   const refreshNotifications = async () => {

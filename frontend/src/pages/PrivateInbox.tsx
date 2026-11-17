@@ -56,8 +56,8 @@ export default function PrivateInbox() {
     setSearchParams({ page: String(newPage) });
   }
   useEffect(() => {
-    console.log("thredas:", threads);
-  }, [threads]);
+    console.log("data", data);
+  }, [data]);
   if (isPending) {
     return (
       <div dir="rtl" className="mx-auto max-w-4xl p-6">

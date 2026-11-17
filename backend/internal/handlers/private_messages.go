@@ -40,12 +40,6 @@ type privateThreadSummary struct {
 	LastMessageSenderName *string `json:"last_message_sender_name"`
 }
 
-// type privateParticipant struct {
-// 	UserID     string     `json:"user_id"`
-// 	JoinedAt   time.Time  `json:"joined_at"`
-// 	LastReadAt *time.Time `json:"last_read_at"`
-// }
-
 type privateMessage struct {
 	ID          int64     `json:"id"`
 	ThreadID    int64     `json:"thread_id"`
@@ -61,7 +55,7 @@ type privateMessage struct {
 func (h *Handler) RegisterPrivateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/private/threads", h.CreatePrivateThread)
 	mux.HandleFunc("GET /api/private/threads", h.ListPrivateThreads)
-	mux.HandleFunc("GET /api/private/threads/{id}/messages", h.ListPrivateMessages)
+	mux.HandleFunc("GET /api/private/threads/{id}/messages", h.GetPrivateThread)
 	mux.HandleFunc("POST /api/private/threads/{id}/messages", h.SendPrivateMessage)
 	mux.HandleFunc("PUT /api/private/messages/{id}", h.EditPrivateMessage)
 	mux.HandleFunc("DELETE /api/private/messages/{id}", h.DeletePrivateMessage)
@@ -554,7 +548,7 @@ func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/private/threads/{id}/messages?page=1
 
-func (h *Handler) ListPrivateMessages(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetPrivateThread(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return

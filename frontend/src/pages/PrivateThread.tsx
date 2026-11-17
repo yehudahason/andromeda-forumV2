@@ -5,7 +5,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getPrivateMessages } from "../fetchMethods/privateMessages";
+import { getPrivateThread } from "../fetchMethods/privateMessages";
 import HtmlContent from "../components/HtmlContent";
 // import { useEffect } from "react";
 import Pagination from "../components/Paginatiom";
@@ -13,7 +13,7 @@ import { GetAvatar } from "../utils/GetAvatar";
 import { useEffect } from "react";
 import { formatDateFull } from "../utils/formatDateFull";
 import { markPrivateThreadRead } from "../fetchMethods/privateMessages";
-export default function PrivateMessagesPage() {
+export default function PrivateThread() {
   const location = useLocation();
   const { tid } = useParams<{ tid: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -27,7 +27,7 @@ export default function PrivateMessagesPage() {
 
   const { data, isLoading, isError, error, isFetching } = useQuery({
     queryKey: ["privateMessages", threadID, page],
-    queryFn: ({ signal }) => getPrivateMessages(threadID, page, signal),
+    queryFn: ({ signal }) => getPrivateThread(threadID, page, signal),
     enabled: validThreadID,
   });
   //Scroll to id

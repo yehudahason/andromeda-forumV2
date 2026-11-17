@@ -17,11 +17,18 @@ export interface Notification {
   created_at: string;
 }
 
+export interface NotificationResponse {
+  notifications: Notification[];
+  total: number;
+  page: number;
+  total_pages: number;
+}
 // Get all notifications
 export function getNotifications(
+  page: number,
   signal?: AbortSignal,
-): Promise<Notification[]> {
-  return privateRequest("/api/notifications", {
+): Promise<NotificationResponse> {
+  return privateRequest(`/api/notifications?page=${page}`, {
     method: "GET",
     signal,
   });

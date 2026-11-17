@@ -47,10 +47,11 @@ export default function Header() {
       console.log(error);
     }
   }
+
   //Getting Notifications
   const { data, isLoading, error } = useQuery({
     queryKey: ["notifications"],
-    queryFn: ({ signal }) => getNotifications(signal),
+    queryFn: ({ signal }) => getNotifications(1, signal),
     refetchInterval: 10 * 60 * 1000,
   });
   //To refetch notifications after update
@@ -61,12 +62,12 @@ export default function Header() {
   };
   console.log(data);
 
-  const threadsNotification = data?.filter(
-    (item) => item.type === "thread_reply",
-  );
-  const pMessagesNotification = data?.filter(
-    (item) => item.type === "private_message",
-  );
+  const threadsNotification = data?.notifications
+    ? data?.notifications.filter((item) => item.type === "thread_reply")
+    : [];
+  const pMessagesNotification = data?.notifications
+    ? data?.notifications.filter((item) => item.type === "private_message")
+    : [];
 
   const tNotReadLength = threadsNotification?.filter(
     (item) => !item.is_read,
@@ -240,7 +241,7 @@ export default function Header() {
                     )}
                     <li className="flex flex-row justify-center items-center text-sky-400 px-4 py-6">
                       <a
-                        href="#"
+                        href="/notification"
                         className=" flex flex-row justify-center items-center rounded-md gap-2 hover:bg-neutral-500"
                       >
                         <img src={`${baseUrl}menu_sky.png`} alt="" />

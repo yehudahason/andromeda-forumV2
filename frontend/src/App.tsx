@@ -15,13 +15,12 @@ import NewPosts from "./pages/NewPosts";
 import { useEffect } from "react";
 import { useUserStore } from "./stores/userStore";
 import { supabase } from "./lib/supabase";
-// import { useNavigate } from "react-router-dom";
-
 import { getMe } from "./lib/getMe";
 import AuthPage from "./pages/AuthPage";
 import NewPrivateThread from "./pages/NewPrivateThread";
 import PrivateInbox from "./pages/PrivateInbox";
-import PrivateMessagePage from "./pages/PrivateThreadPage";
+import PrivateThread from "./pages/PrivateThread";
+import AllNotification from "./pages/AllNotification";
 
 export default function App() {
   // const navigate = useNavigate();
@@ -91,7 +90,8 @@ export default function App() {
       <Route path="/privatemessage/:tid" element={<NewPrivateMessage />} />
       <Route path="/forum/:f/:t" element={<ThreadPage />} />
       <Route path="/inbox/" element={<PrivateInbox />} />
-      <Route path="/private/:tid" element={<PrivateMessagePage />} />
+      <Route path="/notification/" element={<AllNotification />} />
+      <Route path="/private/:tid" element={<PrivateThread />} />
       <Route
         path="/post/:f"
         element={

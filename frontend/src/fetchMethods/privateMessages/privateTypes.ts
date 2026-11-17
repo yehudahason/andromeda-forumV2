@@ -53,7 +53,7 @@ export type PrivatePaginated<T, K extends string> = {
   per_page: number;
 } & Record<K, T[]>;
 
-export type PrivateMessagesResponse = PrivatePaginated<
+export type PrivateThreadResponse = PrivatePaginated<
   PrivateMessage,
   "messages"
 >;

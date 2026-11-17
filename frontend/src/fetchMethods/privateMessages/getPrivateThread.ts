@@ -1,10 +1,14 @@
 import { privateRequest } from "./privateRequest";
-import type { PrivateThreadDetailsResponse } from "./privateTypes";
+import type { PrivateThreadResponse } from "./privateTypes";
 
-// GET /api/private/threads/{id}
+// GET /api/private/threads/{id}/messages?page=1
 export function getPrivateThread(
   threadID: number,
+  page = 1,
   signal?: AbortSignal,
-): Promise<PrivateThreadDetailsResponse> {
-  return privateRequest(`/api/private/threads/${threadID}`, { signal });
+): Promise<PrivateThreadResponse> {
+  return privateRequest(
+    `/api/private/threads/${threadID}/messages?page=${page}`,
+    { signal },
+  );
 }

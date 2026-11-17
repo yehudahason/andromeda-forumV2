@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -34,6 +35,7 @@ type Notification struct {
 	ActorID         *string   `json:"actor_id"`
 	IsRead          bool      `json:"is_read"`
 	CreatedAt       time.Time `json:"created_at"`
+	Total           int64     `json:"total"` //Total notification
 }
 
 func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
@@ -43,41 +45,67 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Pagination
+	const pageSize = 14
+
+	page := 1
+
+	if pageParam := r.URL.Query().Get("page"); pageParam != "" {
+		page, err = strconv.Atoi(pageParam)
+		if err != nil || page < 1 || page > math.MaxInt/pageSize {
+			http.Error(w, "Invalid page number", http.StatusBadRequest)
+			return
+		}
+	}
+	//Total notification per user
+	var total int64
+
+	err = h.DB.QueryRow(
+		r.Context(),
+		`SELECT COUNT(*)
+     FROM public.notifications
+     WHERE user_id = $1`,
+		user.ID,
+	).Scan(&total)
+	offset := (page - 1) * pageSize
+
 	rows, err := h.DB.Query(r.Context(), `
-    SELECT
-        n.id,
-        n.user_id::text,
-        COALESCE(p.name, '') AS actor_name,
-        n.type,
-        n.thread_id,
-        n.thread_page,
-        n.reply_id::text,
-        n.message_id,
-        n.actor_id::text,
-        n.is_read,
-        n.created_at,
-        COALESCE(t.title, '') AS thread_title,
-        f.id AS forum_id,
-        pm.thread_id AS private_thread_id
+		SELECT
+			n.id,
+			n.user_id::text,
+			COALESCE(p.name, '') AS actor_name,
+			n.type,
+			n.thread_id,
+			n.thread_page,
+			n.reply_id::text,
+			n.message_id,
+			n.actor_id::text,
+			n.is_read,
+			n.created_at,
+			COALESCE(t.title, '') AS thread_title,
+			f.id AS forum_id,
+			pm.thread_id AS private_thread_id
 
-    FROM public.notifications AS n
+		FROM public.notifications AS n
 
-    LEFT JOIN public.threads AS t
-        ON t.id = n.thread_id
+		LEFT JOIN public.threads AS t
+			ON t.id = n.thread_id
 
-    LEFT JOIN public.forums AS f
-        ON t.forum_id = f.id
+		LEFT JOIN public.forums AS f
+			ON t.forum_id = f.id
 
-    LEFT JOIN public.profiles AS p
-        ON p.auth_user_id = n.actor_id
+		LEFT JOIN public.profiles AS p
+			ON p.auth_user_id = n.actor_id
 
-    LEFT JOIN public.private_messages AS pm
-        ON pm.id = n.message_id
+		LEFT JOIN public.private_messages AS pm
+			ON pm.id = n.message_id
 
-    WHERE n.user_id = $1
+		WHERE n.user_id = $1
 
-    ORDER BY n.created_at DESC, n.id DESC
-`, user.ID)
+		ORDER BY n.created_at DESC, n.id DESC
+
+		LIMIT 14 OFFSET $2
+	`, user.ID, offset)
 
 	if err != nil {
 		slog.Error("Failed to fetch notifications", "error", err)
@@ -123,11 +151,21 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if err := json.NewEncoder(w).Encode(notifications); err != nil {
+	response := struct {
+		Notifications []Notification `json:"notifications"`
+		Total         int64          `json:"total"`
+		Page          int            `json:"page"`
+		TotalPages    int64          `json:"total_pages"`
+	}{
+		Notifications: notifications,
+		Total:         total,
+		Page:          page,
+		TotalPages:    (total + 13) / 14,
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.Error("Failed to encode notifications", "error", err)
 	}
 }
-
 func (h *Handler) MarkNotificationRead(w http.ResponseWriter, r *http.Request) {
 	user, err := h.Auth.GetUser(r)
 	if err != nil {

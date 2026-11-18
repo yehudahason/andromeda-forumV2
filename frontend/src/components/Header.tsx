@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { getMe } from "../lib/getMe.ts";
 import { GetAvatar } from "../utils/GetAvatar.tsx";
@@ -47,7 +47,6 @@ export default function Header() {
       console.log(error);
     }
   }
-
   //Getting Notifications
   const { data, isLoading, error } = useQuery({
     queryKey: ["notifications"],
@@ -55,13 +54,16 @@ export default function Header() {
     refetchInterval: 60 * 1000,
   });
   //To refetch notifications after update
-  const refreshNotifications = async () => {
+  const refreshNotifications = useCallback(async () => {
     await queryClient.invalidateQueries({
       queryKey: ["notifications"],
     });
-  };
+  }, [queryClient]);
   console.log(data);
 
+  useEffect(() => {
+    refreshNotifications();
+  }, [notiMenu, mailMenu, refreshNotifications]);
   const threadsNotification = data?.notifications
     ? data?.notifications.filter((item) => item.type === "thread_reply")
     : [];

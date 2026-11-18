@@ -225,9 +225,10 @@ export default function Header() {
                               }}
                             >
                               <span className="flex items-center gap-4">
-                                <span>{formatDate(item.created_at)}-</span>
+                                <span>{formatDate(item.created_at)}</span>
                                 <span className="truncate">
-                                  תגובה חדשה {item.thread_title}
+                                  {item.actor_name} הגיב בדיון-{" "}
+                                  {item.thread_title}
                                 </span>
                               </span>
                             </a>

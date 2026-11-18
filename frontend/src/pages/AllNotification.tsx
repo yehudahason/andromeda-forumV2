@@ -69,9 +69,12 @@ export default function AllNotification() {
 
   return (
     <>
-      <main dir="rtl" className="mx-auto max-w-4xl px-4 py-6">
+      <section
+        dir="rtl"
+        className=" min-h-[80vh] flex flex-col  mx-auto max-w-7xl px-4 py-6"
+      >
         {totalPages && (
-          <div className="flex h-fit items-center justify-between border-b  border-white/15 ">
+          <div className="flex w-full h-fit items-center justify-between border-b  border-white/15 ">
             <Pagination
               total={total}
               currentPage={page}
@@ -84,54 +87,56 @@ export default function AllNotification() {
         <div>
           <h1 className="text-2xl py-4 text-white font-bold">כל ההתראות</h1>
         </div>
-        <ul>
-          {notifications.map((item) => {
-            if (item.type === "thread_reply")
-              return (
-                <li className="text-white">
-                  <a
-                    href={`/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`}
-                    onClick={async (e) => {
-                      e.preventDefault();
+        <div className="flex w-full  flex-1 bg-neutral-600 p-6 rounded-xl">
+          <ul className="flex flex-col gap-3">
+            {notifications.map((item) => {
+              if (item.type === "thread_reply")
+                return (
+                  <li className="text-white text-lg">
+                    <a
+                      href={`/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`}
+                      onClick={async (e) => {
+                        e.preventDefault();
 
-                      await markNotificationRead(item.id);
-                      await refreshNotifications();
-                      window.location.href = `/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`;
-                    }}
-                  >
-                    <span className="flex items-center gap-4">
-                      <span>{formatDate(item.created_at)}-</span>
-                      <span className="truncate">
-                        תגובה בדיון - {item.thread_title}
+                        await markNotificationRead(item.id);
+                        await refreshNotifications();
+                        window.location.href = `/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.reply_id}`;
+                      }}
+                    >
+                      <span className="flex items-center gap-4">
+                        <span>{formatDate(item.created_at)}</span>
+                        <span className="truncate">
+                          {item.actor_name} הגיב בדיון- {item.thread_title}
+                        </span>
                       </span>
-                    </span>
-                  </a>
-                </li>
-              );
-            else {
-              return (
-                <li className="text-white">
-                  <a
-                    href={`/private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`}
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      await markNotificationRead(item.id);
-                      await refreshNotifications();
+                    </a>
+                  </li>
+                );
+              else {
+                return (
+                  <li className="text-white">
+                    <a
+                      href={`/private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`}
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        await markNotificationRead(item.id);
+                        await refreshNotifications();
 
-                      window.location.href = `/private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`;
-                    }}
-                  >
-                    {" "}
-                    <span className="flex items-center gap-4">
-                      <span>{formatDate(item.created_at)}-</span>
-                      <span>קיבלת הודעה מ-{item.actor_name}</span>
-                    </span>
-                  </a>
-                </li>
-              );
-            }
-          })}
-        </ul>
+                        window.location.href = `/private/${item.private_thread_id}/?page=${item.thread_page}#${item.message_id}`;
+                      }}
+                    >
+                      {" "}
+                      <span className="flex items-center gap-4">
+                        <span>{formatDate(item.created_at)}-</span>
+                        <span>קיבלת הודעה פרטית מ-{item.actor_name}</span>
+                      </span>
+                    </a>
+                  </li>
+                );
+              }
+            })}
+          </ul>
+        </div>
         {totalPages > 1 && (
           <div className="flex h-fit items-center justify-between border-b  border-white/15 ">
             <Pagination
@@ -141,7 +146,7 @@ export default function AllNotification() {
             />
           </div>
         )}
-      </main>
+      </section>
     </>
   );
 }

@@ -21,6 +21,7 @@ import NewPrivateThread from "./pages/NewPrivateThread";
 import PrivateInbox from "./pages/PrivateInbox";
 import PrivateThread from "./pages/PrivateThread";
 import AllNotification from "./pages/AllNotification";
+import Profile from "./pages/Profile";
 
 export default function App() {
   // const navigate = useNavigate();
@@ -92,6 +93,7 @@ export default function App() {
       <Route path="/inbox/" element={<PrivateInbox />} />
       <Route path="/notification/" element={<AllNotification />} />
       <Route path="/private/:tid" element={<PrivateThread />} />
+      <Route path="/users/:userId/threads" element={<Profile />} />
       <Route
         path="/post/:f"
         element={

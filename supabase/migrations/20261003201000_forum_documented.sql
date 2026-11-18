@@ -714,6 +714,12 @@ WHERE last_post_author_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_forums_last_post_author_id
 ON public.forums (last_post_author_id)
 WHERE last_post_author_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_threads_user_created
+ON public.threads (
+    user_id,
+    created_at DESC,
+    id DESC
+);
 -- =========================================================
 -- FORUM INITIAL VALUES
 -- Prevent callers from seeding trigger-maintained aggregate state.

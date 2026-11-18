@@ -107,17 +107,19 @@ export default function Replies({
                   {tdetails.title}
                 </div>
 
-                <div className="flex  sm:pr-4  pr-2 sm:gap-8 gap-2">
-                  <div className="flex mt-6 flex-col gap-4 justify-start items-center">
+                <div className="flex  justify-center sm:pr-4  pr-2 sm:gap-8 gap-2">
+                  <div className="flex  flex-col gap-1 justify-center items-center">
                     <span className="sm:w-30 w-20 text-center font-medium flex gap-2">
                       <p>{tdetails.author.name}</p>
                     </span>
                     <span className="">
-                      {GetAvatar({
-                        name: tdetails.author.name,
-                        image: tdetails.author.image,
-                        size: 56,
-                      })}
+                      <a href={`/users/${tdetails.author.id}/threads`}>
+                        {GetAvatar({
+                          name: tdetails.author.name,
+                          image: tdetails.author.image,
+                          size: 56,
+                        })}
+                      </a>
                     </span>
 
                     <span className="flex items-center gap-1 text-sm">

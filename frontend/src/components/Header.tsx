@@ -194,7 +194,7 @@ export default function Header() {
                 border-b border-b-gray-400
                 "
                     >
-                      <h3 className="text-white ">התראות</h3>
+                      <h3 className="text-white ">התראות אחרונות</h3>
                       <button
                         onClick={async () => {
                           await markAllNotificationsRead();

@@ -37,7 +37,12 @@ export default function NewPrivateMessage() {
   if (createMessageMutation.isSuccess) {
     const response = createMessageMutation.data;
     console.log(response);
-    return <AfterPost success={true} postLink={`/private/${tid}`} />;
+    return (
+      <AfterPost
+        success={true}
+        postLink={`/private/${tid}?page=${response.page}#${response.privateMessage.id}`}
+      />
+    );
   }
 
   if (createMessageMutation.isError) {

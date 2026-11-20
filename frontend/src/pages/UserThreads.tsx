@@ -6,7 +6,7 @@ import Pagination from "../components/Paginatiom";
 // import { GetAvatar } from "../utils/GetAvatar";
 import { formatDate } from "../utils/formatDate";
 
-export default function Profile() {
+export default function UserThreads() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { userId } = useParams<{ userId: string }>();
   // Read page from URL.
@@ -34,8 +34,8 @@ export default function Profile() {
     setSearchParams({ page: String(newPage) });
   }
   useEffect(() => {
-    console.log("test:", threads);
-  }, [threads]);
+    console.log("user threads:", data);
+  }, [data]);
   if (isPending) {
     return (
       <div dir="rtl" className="mx-auto max-w-4xl p-6">
@@ -77,13 +77,13 @@ export default function Profile() {
         {/* Header */}
 
         <div>
-          <h1 className="text-2xl py-4 text-white font-bold">כל ההתראות</h1>
+          <h1 className="text-2xl py-4 text-white font-bold">כל השירשורים</h1>
         </div>
         <div className="flex w-full  flex-1 bg-neutral-600 p-6 rounded-xl">
           <ul className="flex flex-col gap-3">
             {threads.map((item) => {
               return (
-                <li className="text-white text-lg">
+                <li key={item.id} className="text-white text-lg">
                   <a href={`/forum/${item.forum_id}/${item.id}`}>
                     <span className="flex items-center gap-4">
                       <span>{formatDate(item.created_at)}</span>

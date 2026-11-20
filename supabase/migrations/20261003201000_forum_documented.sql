@@ -720,6 +720,12 @@ ON public.threads (
     created_at DESC,
     id DESC
 );
+CREATE INDEX idx_replies_user_created
+ON public.replies (
+    user_id,
+    created_at DESC,
+    id DESC
+);
 -- =========================================================
 -- FORUM INITIAL VALUES
 -- Prevent callers from seeding trigger-maintained aggregate state.

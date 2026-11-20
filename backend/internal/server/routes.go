@@ -17,6 +17,8 @@ func NewMux(h *handlers.Handler) *http.ServeMux {
 	mux.HandleFunc("GET /api/posts/latest", h.GetLatestPosts)
 	mux.HandleFunc("GET /api/replies/{threadID}/{replyID}/position", h.GetReplyPositionHandler)
 	mux.HandleFunc("GET /api/users/{id}", h.GetUserByIDEndpoint)
+	mux.HandleFunc("GET /api/users/{id}/threads", h.GetUserThreads)
+	mux.HandleFunc("GET /api/users/{id}/replies", h.GetUserReplies)
 
 	//Authorized endpoints
 	mux.HandleFunc("PUT /api/notifications/read-all", h.MarkAllNotificationsRead)
@@ -24,7 +26,6 @@ func NewMux(h *handlers.Handler) *http.ServeMux {
 	mux.HandleFunc("PUT /api/notifications/{id}/read", h.MarkNotificationRead)
 	mux.HandleFunc("POST /api/threads/{threadID}/follow", h.FollowThreadHandler)
 	mux.HandleFunc("DELETE /api/threads/{threadID}/follow", h.UnfollowThreadHandler)
-	mux.HandleFunc("GET /api/users/{id}/threads", h.GetUserThreads)
 	mux.HandleFunc("GET /api/threads/{threadID}/follow", h.GetThreadFollow)
 	mux.HandleFunc("DELETE /api/forums/{forumID}", h.DeleteForum)
 	mux.HandleFunc("POST /api/forums", h.CreateForum)

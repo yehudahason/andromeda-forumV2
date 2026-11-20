@@ -378,7 +378,7 @@ export default function PostComposer({
     setDirection((current) => (current === "rtl" ? "ltr" : "rtl"));
   }, [editor]);
 
-  //UnFollow Thread function
+  //UnFollow Thread function .
   const unFollow = useCallback(
     async (thread: number | null) => {
       //Return if no thread number or notify true

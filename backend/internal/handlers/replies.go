@@ -7,13 +7,164 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/yehudahason/andromeda-forumV2/backend/internal/auth"
 	"github.com/yehudahason/andromeda-forumV2/backend/internal/models"
 )
+
+type UserReply struct {
+	ID          string    `json:"id"`
+	Post        string    `json:"post"`
+	ForumID     int64     `json:"forum_id"`
+	ForumName   string    `json:"forum_name"`
+	ThreadID    int64     `json:"thread_id"`
+	ThreadTitle string    `json:"thread_title"`
+	CreatedAt   time.Time `json:"created_at"`
+	ThreadPage  int64     `json:"thread_page"`
+}
+
+type UserRepliesResponse struct {
+	Replies    []UserReply `json:"replies"`
+	Page       int         `json:"page"`
+	TotalPages int64       `json:"total_pages"`
+	Total      int64       `json:"total"`
+	HasNext    bool        `json:"has_next"`
+}
+
+func (h *Handler) GetUserReplies(w http.ResponseWriter, r *http.Request) {
+	const pageSize = 14
+
+	userID := r.PathValue("id")
+
+	var parsedID pgtype.UUID
+	if err := parsedID.Scan(userID); err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	page := 1
+
+	if p := r.URL.Query().Get("page"); p != "" {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 1 {
+			http.Error(w, "Invalid page", http.StatusBadRequest)
+			return
+		}
+		page = n
+	}
+
+	offset := (page - 1) * pageSize
+
+	// Count user's replies
+	var total int64
+
+	err := h.DB.QueryRow(r.Context(), `
+		SELECT COUNT(*)
+		FROM public.replies
+		WHERE user_id = $1
+	`, parsedID).Scan(&total)
+
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch paginated replies
+	rows, err := h.DB.Query(r.Context(), `
+			SELECT
+		    r.id::text,
+	    	r.post,
+	    	f.id,
+    		f.name,
+    		t.id,
+    		t.title,
+
+    		(
+       		SELECT (COUNT(*) - 1) / 14 + 1
+        	FROM public.replies AS r2
+        	WHERE r2.thread_id = r.thread_id
+    			AND (
+        		(r2.created_at < r.created_at)
+        		OR (
+            	(r2.created_at = r.created_at)
+            	AND (r2.id <= r.id)
+       			 )
+   			 )
+			) AS thread_page,
+
+    	 	r.created_at
+
+			FROM public.replies AS r
+
+			JOIN public.threads AS t
+    		ON t.id = r.thread_id
+
+			JOIN public.forums AS f
+   		 	ON f.id = t.forum_id
+
+			WHERE r.user_id = $1
+
+			ORDER BY r.created_at DESC, r.id DESC
+
+		LIMIT $2 OFFSET $3;
+		`, parsedID, pageSize, offset)
+
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	replies := make([]UserReply, 0)
+
+	for rows.Next() {
+		var reply UserReply
+
+		err := rows.Scan(
+			&reply.ID,
+			&reply.Post,
+			&reply.ForumID,
+			&reply.ForumName,
+			&reply.ThreadID,
+			&reply.ThreadTitle,
+			&reply.ThreadPage,
+			&reply.CreatedAt,
+		)
+
+		if err != nil {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		replies = append(replies, reply)
+	}
+
+	if err := rows.Err(); err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	totalPages := (total + pageSize - 1) / pageSize
+
+	response := UserRepliesResponse{
+		Replies:    replies,
+		Page:       page,
+		TotalPages: totalPages,
+		Total:      total,
+		HasNext:    int64(page) < totalPages,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		return
+	}
+}
 
 func (h *Handler) GetReplies(w http.ResponseWriter, r *http.Request) {
 	const perPage = 14

@@ -78,6 +78,12 @@ export default function UserThreads() {
 
         <div>
           <h1 className="text-2xl py-4 text-white font-bold">כל השירשורים</h1>
+          <a className="text-white m-2" href={`/users/${userId}/threads`}>
+            כל השירשורים
+          </a>
+          <a className="text-white" href={`/users/${userId}/replies`}>
+            כל ההודעות
+          </a>
         </div>
         <div className="flex w-full  flex-1 bg-neutral-600 p-6 rounded-xl">
           <ul className="flex flex-col gap-3">

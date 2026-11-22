@@ -124,11 +124,12 @@ type CreateReplyResponse struct {
 }
 
 type LatestPost struct {
-	ID        string `json:"id"`
-	PostType  string `json:"post_type"`
-	ThreadID  int64  `json:"thread_id"`
-	ForumID   int64  `json:"forum_id"`
-	ForumName string `json:"forum_name"`
+	ID         string `json:"id"`
+	PostType   string `json:"post_type"`
+	ThreadID   int64  `json:"thread_id"`
+	ThreadPage int64  `json:"thread_page"`
+	ForumID    int64  `json:"forum_id"`
+	ForumName  string `json:"forum_name"`
 
 	OpenUserID    *string `json:"open_user_id"`
 	OpenUserName  string  `json:"open_user_name"`

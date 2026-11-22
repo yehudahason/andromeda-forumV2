@@ -84,6 +84,7 @@ export type LatestPost = {
   id: string;
   post_type: string;
   thread_id: number;
+  thread_page: number;
   forum_id: number;
   forum_name: string;
 

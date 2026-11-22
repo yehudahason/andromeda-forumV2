@@ -80,11 +80,8 @@ export default function NewPosts() {
       <ul className="space-y-3 max-w-full">
         {latestPosts.map((item) => (
           <li
-            onClick={() =>
-              navigate(`/forum/${item.forum_id}/${item.thread_id}`)
-            }
             key={item.id}
-            className="max-w-full cursor-pointer rounded-md bg-[#555] sm:px-7 p-1 py-5 text-white flex gap-4"
+            className="max-w-full  rounded-md bg-[#555] sm:px-7 p-1 py-5 text-white flex gap-4"
           >
             <div className="flex">
               <GetAvatar
@@ -95,14 +92,28 @@ export default function NewPosts() {
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <div className="flex w-full justify-between">
-                <div className="truncate break-all whitespace-pre-wrap text-lg  text-[#0BD7FD]">
+                <div
+                  title="Go to Thread"
+                  onClick={() =>
+                    navigate(`/forum/${item.forum_id}/${item.thread_id}`)
+                  }
+                  className="cursor-pointer truncate break-all whitespace-pre-wrap text-lg  text-[#0BD7FD]"
+                >
                   {item.thread_title}
                 </div>{" "}
                 <div className="text-center text-sm text-amber-950 flex justify-center items-center bg-amber-50 p-2 min-w-9 h-fit w-fit rounded-full ">
                   {item.messages_count}
                 </div>
               </div>
-              <div className="mt-2  w-full text-lg text-white">
+              <div
+                title="Go to last post"
+                onClick={() =>
+                  navigate(
+                    `/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.id}`,
+                  )
+                }
+                className="mt-2  cursor-pointer w-full text-lg text-white"
+              >
                 <HtmlContent
                   html={truncateHtml(item.last_reply_content, 150)}
                 />

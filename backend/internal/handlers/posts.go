@@ -29,112 +29,117 @@ func (h *Handler) GetLatestPosts(w http.ResponseWriter, r *http.Request) {
 	offset := (page - 1) * perPage
 
 	const query = `
-		SELECT
-			posts.id,
-			posts.post_type,
-			posts.thread_id,
-			posts.forum_id,
-			f.name AS forum_name,
+    SELECT
+        posts.id,
+        posts.post_type,
+        posts.thread_id,
+        posts.forum_id,
+        posts.thread_page,
+        f.name AS forum_name,
 
-			COALESCE(
-				posts.open_user_id,
-				'00000000-0000-0000-0000-000000000000'::uuid
-			)::text AS open_user_id,
+        COALESCE(
+            posts.open_user_id,
+            '00000000-0000-0000-0000-000000000000'::uuid
+        )::text AS open_user_id,
 
-			COALESCE(
-				open_user.name,
-				'Deleted user'
-			) AS open_user_name,
+        COALESCE(
+            open_user.name,
+            'Deleted user'
+        ) AS open_user_name,
 
-			COALESCE(
-				open_user.image_url,
-				''
-			) AS open_user_image,
+        COALESCE(
+            open_user.image_url,
+            ''
+        ) AS open_user_image,
 
-			posts.last_reply_user_id::text,
+        posts.last_reply_user_id::text,
 
-			CASE
-				WHEN posts.last_reply_user_id IS NULL THEN ''
-				ELSE COALESCE(last_reply_user.name, 'Deleted user')
-			END AS last_reply_user_name,
+        CASE
+            WHEN posts.last_reply_user_id IS NULL THEN ''
+            ELSE COALESCE(last_reply_user.name, 'Deleted user')
+        END AS last_reply_user_name,
 
-			posts.thread_title,
-			posts.thread_content,
-			posts.last_reply_content,
-			posts.created_at,
-			posts.messages_count
+        posts.thread_title,
+        posts.thread_content,
+        posts.last_reply_content,
+        posts.created_at,
+        posts.messages_count
 
-		FROM (
-			SELECT *
-			FROM (
-				SELECT DISTINCT ON (r.thread_id)
-					r.id::text AS id,
-					'reply'::text AS post_type,
-					r.thread_id,
-					t.forum_id,
+    FROM (
+        SELECT *
+        FROM (
+            SELECT DISTINCT ON (r.thread_id)
+                r.id::text AS id,
+                'reply'::text AS post_type,
+                r.thread_id,
+                t.forum_id,
 
-					t.user_id AS open_user_id,
-					r.user_id AS last_reply_user_id,
+                ((COUNT(*) OVER (PARTITION BY r.thread_id) - 1) / 14) + 1 AS thread_page,
 
-					t.title AS thread_title,
-					t.content AS thread_content,
-					r.post AS last_reply_content,
-					r.created_at,
-					t.messages_count
+                t.user_id AS open_user_id,
+                r.user_id AS last_reply_user_id,
 
-				FROM public.replies AS r
+                t.title AS thread_title,
+                t.content AS thread_content,
+                r.post AS last_reply_content,
+                r.created_at,
+                t.messages_count
 
-				JOIN public.threads AS t
-					ON t.id = r.thread_id
+            FROM public.replies AS r
 
-				ORDER BY
-					r.thread_id,
-					r.created_at DESC,
-					r.id DESC
-			) AS latest_replies
+            JOIN public.threads AS t
+                ON t.id = r.thread_id
 
-			UNION ALL
+            ORDER BY
+                r.thread_id,
+                r.created_at DESC,
+                r.id DESC
+        ) AS latest_replies
 
-			SELECT
-				t.id::text AS id,
-				'thread'::text AS post_type,
-				t.id AS thread_id,
-				t.forum_id,
+        UNION ALL
 
-				t.user_id AS open_user_id,
-				NULL::uuid AS last_reply_user_id,
+        SELECT
+            t.id::text AS id,
+            'thread'::text AS post_type,
+            t.id AS thread_id,
+            t.forum_id,
 
-				t.title AS thread_title,
-				t.content AS thread_content,
-				t.content AS last_reply_content,
-				t.created_at,
-				t.messages_count
+            1::bigint AS thread_page,
 
-			FROM public.threads AS t
+            t.user_id AS open_user_id,
+            NULL::uuid AS last_reply_user_id,
 
-			WHERE NOT EXISTS (
-				SELECT 1
-				FROM public.replies AS r
-				WHERE r.thread_id = t.id
-			)
-		) AS posts
+            t.title AS thread_title,
+            t.content AS thread_content,
+            t.content AS last_reply_content,
+            t.created_at,
+            t.messages_count
 
-		JOIN public.forums AS f
-			ON f.id = posts.forum_id
+        FROM public.threads AS t
 
-		LEFT JOIN public.profiles AS open_user
-			ON open_user.id = posts.open_user_id
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM public.replies AS r
+            WHERE r.thread_id = t.id
+        )
+    ) AS posts
 
-		LEFT JOIN public.profiles AS last_reply_user
-			ON last_reply_user.id = posts.last_reply_user_id
+    JOIN public.forums AS f
+        ON f.id = posts.forum_id
 
-		ORDER BY
-			posts.created_at DESC,
-			posts.id DESC
+    LEFT JOIN public.profiles AS open_user
+        ON open_user.id = posts.open_user_id
 
-		LIMIT $1
-		OFFSET $2
-	`
+    LEFT JOIN public.profiles AS last_reply_user
+        ON last_reply_user.id = posts.last_reply_user_id
+
+    ORDER BY
+        posts.created_at DESC,
+        posts.id DESC
+
+    LIMIT $1
+    OFFSET $2
+`
 
 	rows, err := h.DB.Query(
 		r.Context(),
@@ -169,6 +174,7 @@ func (h *Handler) GetLatestPosts(w http.ResponseWriter, r *http.Request) {
 			&post.PostType,
 			&post.ThreadID,
 			&post.ForumID,
+			&post.ThreadPage,
 			&post.ForumName,
 
 			&post.OpenUserID,

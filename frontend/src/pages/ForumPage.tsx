@@ -39,7 +39,7 @@ export default function ForumPage() {
 
   return (
     <section className="mx-auto max-w-[1280px]">
-      <div className="flex my-8 text-white justify-between items-center w-full">
+      <div className="flex sm:flex-row flex-col gap-6 my-8 text-white justify-between items-center w-full">
         <h3 className="text-2xl font-semibold">{forumName}</h3>
         <Link
           className="bg-sky-400 text-black py-2 px-4 rounded-lg"

@@ -113,7 +113,10 @@ export default function Replies({
                       <p>{tdetails.author.name}</p>
                     </span>
                     <span className="">
-                      <a href={`/users/${tdetails.author.id}/threads`}>
+                      <a
+                        title="Go to Profile"
+                        href={`/users/${tdetails.author.id}/threads`}
+                      >
                         {GetAvatar({
                           name: tdetails.author.name,
                           image: tdetails.author.image,
@@ -189,13 +192,16 @@ export default function Replies({
           <div className="w-full flex sm:gap-8 gap-4 min-w-0">
             <div className="flex sm:w-30 w-20 shrink-0 flex-col justify-start pt-6 gap-6 items-center">
               <span className="text-center">{reply.author.name}</span>
-
-              {GetAvatar({
-                name: reply.author.name,
-                image: reply.author.image,
-                size: 50,
-              })}
-
+              <a
+                title="Go to Profile"
+                href={`/users/${reply.author.id}/threads`}
+              >
+                {GetAvatar({
+                  name: reply.author.name,
+                  image: reply.author.image,
+                  size: 50,
+                })}
+              </a>
               <span className="flex items-center gap-1 text-sm">
                 {reply.author.replies_count}
                 <span>💬</span>
@@ -207,8 +213,10 @@ export default function Replies({
                 {formatDateFull(reply.created_at)}
               </p>
 
-              <div className=" min-w-0">
-                <h2 className="mb-2 text-lg font-medium">Re:{reply.title}</h2>
+              <div className=" min-w-0 break-all">
+                <h2 className="mb-2 text-lg font-medium">
+                  Re:{reply.title.slice(0, 30)}
+                </h2>
 
                 <HtmlContent html={reply.post} />
               </div>

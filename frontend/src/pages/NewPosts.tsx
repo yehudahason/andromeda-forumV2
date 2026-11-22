@@ -7,6 +7,8 @@ import { GetAvatar } from "../utils/GetAvatar";
 // import { formatDateFull } from "../utils/formatDateFull";
 import { formatDate } from "../utils/formatDate";
 import HtmlContent from "../components/HtmlContent";
+
+import { truncateHtml } from "../utils/truncateHtml";
 export default function NewPosts() {
   const baseUrl = import.meta.env.BASE_URL;
   const navigate = useNavigate();
@@ -16,41 +18,6 @@ export default function NewPosts() {
     queryKey: ["newPosts", page],
     queryFn: () => getLatestPosts(page),
   });
-
-  function truncateHtml(html: string, maxChars = 200) {
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    let count = 0;
-    let finished = false;
-
-    function walk(node: Node) {
-      if (finished) {
-        node.parentNode?.removeChild(node);
-        return;
-      }
-
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent ?? "";
-        const remaining = maxChars - count;
-
-        if (text.length > remaining) {
-          node.textContent = text.slice(0, remaining) + "...";
-          finished = true;
-          return;
-        }
-
-        count += text.length;
-        return;
-      }
-
-      for (const child of Array.from(node.childNodes)) {
-        walk(child);
-      }
-    }
-
-    walk(doc.body);
-
-    return doc.body.innerHTML;
-  }
 
   useEffect(() => {
     function init() {
@@ -106,12 +73,18 @@ export default function NewPosts() {
                 </div>
               </div>
               <div
-                title="Go to last post"
-                onClick={() =>
-                  navigate(
-                    `/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.id}`,
-                  )
-                }
+                title={`${item.post_type === "reply" ? "Go to reply" : "Go to thread"}`}
+                onClick={() => {
+                  if (item.post_type === "reply") {
+                    navigate(
+                      `/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.id}`,
+                    );
+                  } else {
+                    navigate(
+                      `/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}`,
+                    );
+                  }
+                }}
                 className="mt-2  cursor-pointer w-full text-lg text-white"
               >
                 <HtmlContent

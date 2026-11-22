@@ -89,7 +89,7 @@ export default function ThreadList({
           <li
             key={thread.id}
             dir="rtl"
-            className="relative grid min-h-[120px] p-4  grid-cols-1 sm:grid-cols-[4fr_2fr] items-center border-b 
+            className="relative grid min-h-[120px] p-4 gap-4 grid-cols-1 sm:grid-cols-[4fr_2fr] items-center border-b 
            border-white/15  last:border-b-0"
           >
             <button
@@ -106,7 +106,7 @@ export default function ThreadList({
               <img className="w-3 h-3.5" src={`${baseUrl}delete.png`} alt="" />
             </button>
             {/* Forum */}
-            <div className="flex min-w-0 items-center gap-1 text-right">
+            <div className="flex min-w-0 items-center sm:gap-1 gap-3 text-right">
               <a
                 href={`/forum/${thread.forum_id}/${thread.id}`}
                 className="ml-4"
@@ -126,7 +126,7 @@ export default function ThreadList({
               </a>
 
               {/* Text */}
-              <div className="min-w-0">
+              <div className="min-w-0 flex flex-col gap-3">
                 <a
                   href={`/forum/${thread.forum_id}/${thread.id}`}
                   className="block flex-1 break-all  text-[20px] font-medium text-[#0BD7FD] hover:underline"
@@ -134,7 +134,7 @@ export default function ThreadList({
                   {thread.title}
                 </a>
 
-                <p className="truncate text-[16px] text-white flex gap-2">
+                <p className="hidden  truncate text-[16px] text-white sm:flex gap-2">
                   <span>נפתח על ידי -</span>
                   <span>{thread.author}</span>
                   <span>{formatDate(thread.created_at)}</span>

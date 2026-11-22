@@ -86,7 +86,7 @@ export default function Header() {
         <div className="mx-auto max-w-[1280px] px-4 w-full justify-between flex flex-row items-center ">
           <a href="/" className="h-20">
             <img
-              className="h-full sm:w-full w-[15rem] object-cover"
+              className="h-full sm:w-full sm:block hidden object-cover"
               src={`${baseUrl}pm.png`}
               alt=""
             />

@@ -26,12 +26,14 @@ export function formatDate(dateString: string | null | undefined) {
   if (isToday) {
     return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
+  // DD-MM-YY
+  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${String(date.getFullYear()).slice(-2)}`;
 
   // Older than one year → DD-MM-YY
-  if (date < oneYear) {
-    return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${String(date.getFullYear()).slice(-2)}`;
-  }
+  // if (date < oneYear) {
+  //   return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${String(date.getFullYear()).slice(-2)}`;
+  // }
 
   // Otherwise → DD-MM
-  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}`;
+  // return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}`;
 }

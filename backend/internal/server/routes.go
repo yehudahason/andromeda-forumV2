@@ -21,6 +21,7 @@ func NewMux(h *handlers.Handler) *http.ServeMux {
 	mux.HandleFunc("GET /api/users/{id}/replies", h.GetUserReplies)
 
 	//Authorized endpoints
+	mux.HandleFunc("PATCH /api/me/image", h.UpdateProfileImage)
 	mux.HandleFunc("PUT /api/notifications/read-all", h.MarkAllNotificationsRead)
 	mux.HandleFunc("GET /api/notifications", h.GetNotifications)
 	mux.HandleFunc("PUT /api/notifications/{id}/read", h.MarkNotificationRead)

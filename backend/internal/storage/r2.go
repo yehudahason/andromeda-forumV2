@@ -94,23 +94,27 @@ func UploadImageToR2(
 
 	return publicURL + "/" + key, nil
 }
-
 func getR2Client(ctx context.Context) (*s3.Client, error) {
 	r2Once.Do(func() {
 		accessKey := os.Getenv("R2_ACCESS_KEY_ID")
 		secretKey := os.Getenv("R2_SECRET_ACCESS_KEY")
 		endpoint := os.Getenv("R2_ENDPOINT")
+		region := os.Getenv("R2_REGION")
 
 		if accessKey == "" ||
 			secretKey == "" ||
-			endpoint == "" {
-			r2InitErr = errors.New("missing R2 environment variables")
+			endpoint == "" ||
+			region == "" {
+
+			r2InitErr = errors.New(
+				"missing Supabase S3 environment variables",
+			)
 			return
 		}
 
 		cfg, err := config.LoadDefaultConfig(
 			ctx,
-			config.WithRegion("auto"),
+			config.WithRegion(region),
 			config.WithCredentialsProvider(
 				credentials.NewStaticCredentialsProvider(
 					accessKey,
@@ -121,7 +125,7 @@ func getR2Client(ctx context.Context) (*s3.Client, error) {
 		)
 		if err != nil {
 			r2InitErr = fmt.Errorf(
-				"load R2 config: %w",
+				"load Supabase S3 config: %w",
 				err,
 			)
 			return
@@ -131,6 +135,9 @@ func getR2Client(ctx context.Context) (*s3.Client, error) {
 			cfg,
 			func(o *s3.Options) {
 				o.BaseEndpoint = aws.String(endpoint)
+
+				// Required for Supabase Storage.
+				o.UsePathStyle = true
 			},
 		)
 	})
@@ -141,7 +148,6 @@ func getR2Client(ctx context.Context) (*s3.Client, error) {
 
 	return r2Client, nil
 }
-
 func UploadAvatarToR2(
 	ctx context.Context,
 	userID uuid.UUID,

@@ -31,6 +31,7 @@ func (h *Handler) GetForums(w http.ResponseWriter, r *http.Request) {
 				WHEN f.last_post_date IS NULL THEN NULL
 				ELSE COALESCE(p.name, 'Deleted user')
 			END AS last_post_author,
+			COALESCE(p.id::text, '') AS last_post_author_id,
 			f.last_post_date
 		FROM public.forums AS f
 		LEFT JOIN public.profiles AS p
@@ -62,6 +63,7 @@ func (h *Handler) GetForums(w http.ResponseWriter, r *http.Request) {
 			&forum.LastPostTitle,
 			&forum.SortOrder,
 			&forum.LastPostAuthor,
+			&forum.LastPostAuthorID,
 			&forum.LastPostDate,
 		)
 		if err != nil {

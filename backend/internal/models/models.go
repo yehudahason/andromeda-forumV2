@@ -27,17 +27,19 @@ type ThreadDetails struct {
 }
 
 type Thread struct {
-	ID             int64      `json:"id"`
-	ForumID        int64      `json:"forum_id"`
-	Title          string     `json:"title"`
-	Author         *string    `json:"author"`
-	MessagesCount  int64      `json:"messages_count"`
-	LastPostTitle  *string    `json:"last_post_title"`
-	LastPostAuthor *string    `json:"last_post_author"`
-	LastPostDate   *time.Time `json:"last_post_date"`
-	CreatedAt      time.Time  `json:"created_at"`
-	Views          int64      `json:"views"`
-	Unread         bool       `json:"unread"`
+	ID               int64      `json:"id"`
+	ForumID          int64      `json:"forum_id"`
+	Title            string     `json:"title"`
+	Author           *string    `json:"author"`
+	AuthorID         *string    `json:"author_id"`
+	MessagesCount    int64      `json:"messages_count"`
+	LastPostTitle    *string    `json:"last_post_title"`
+	LastPostAuthor   *string    `json:"last_post_author"`
+	LastPostAuthorID *string    `json:"last_post_author_id"`
+	LastPostDate     *time.Time `json:"last_post_date"`
+	CreatedAt        time.Time  `json:"created_at"`
+	Views            int64      `json:"views"`
+	Unread           bool       `json:"unread"`
 }
 
 type ThreadListResponse struct {
@@ -57,6 +59,7 @@ type Forum struct {
 	LastPostThreadId *int64     `json:"last_post_thread_id"`
 	LastPostTitle    *string    `json:"last_post_title"`
 	LastPostAuthor   *string    `json:"last_post_author"`
+	LastPostAuthorID *string    `json:"last_post_author_id"`
 	LastPostDate     *time.Time `json:"last_post_date"`
 }
 

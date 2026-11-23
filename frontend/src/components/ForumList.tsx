@@ -136,9 +136,12 @@ export default function ForumList({
             )}
             <div className="flex items-center gap-1">
               {forum.last_post_author && (
-                <p className="mt-1 text-sm text-white">
+                <a
+                  href={`/users/${forum.last_post_author_id}/threads`}
+                  className="mt-1 text-sm text-white"
+                >
                   על-ידי {forum.last_post_author}
-                </p>
+                </a>
               )}
               ,
               {forum.last_post_date && (

@@ -3,9 +3,11 @@ export type ThreadType = {
   forum_id: number;
   title: string;
   author: string | null;
+  author_id: string | null;
   messages_count: number;
   last_post_title: string | null;
   last_post_author: string | null;
+  last_post_author_id: string | null;
   last_post_date: string | null;
   created_at: string;
   views: string;
@@ -20,6 +22,7 @@ export type ForumType = {
   messages_count: number;
   last_post_title: string | null;
   last_post_author: string | null;
+  last_post_author_id: string | null;
   last_post_date: string | null;
   image: string | null;
   last_post_thread_id: string | null;

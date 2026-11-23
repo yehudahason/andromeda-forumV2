@@ -13,7 +13,7 @@ type ThreadListProps = {
   total: number;
 };
 
-export default function ThreadList({
+export default function ThreadsList({
   forum,
   threads,
   current,
@@ -128,15 +128,22 @@ export default function ThreadList({
               {/* Text */}
               <div className="min-w-0 flex flex-col gap-3">
                 <a
+                  title="Go to Thread"
                   href={`/forum/${thread.forum_id}/${thread.id}`}
-                  className="block flex-1 break-all  text-[20px] font-medium text-[#0BD7FD] hover:underline"
+                  className="block flex-1 break-all  text-[20px] font-medium text-custom-b hover:underline"
                 >
                   {thread.title}
                 </a>
 
                 <p className="hidden  truncate text-[16px] text-white sm:flex gap-2">
                   <span>נפתח על ידי -</span>
-                  <span>{thread.author}</span>
+                  <a
+                    title="Go to Profile"
+                    className="text-custom-b"
+                    href={`/users/${thread.author_id}/threads`}
+                  >
+                    {thread.author}
+                  </a>
                   <span>{formatDate(thread.created_at)}</span>
                 </p>
               </div>
@@ -167,23 +174,28 @@ export default function ThreadList({
 
               {/* Last post */}
               <div className="min-w-0 text-right sm:px-2">
-                <a
-                  href={`/forum/${thread.forum_id}/${thread.id}`}
-                  className="block truncate text-[18px] text-[#0BD7FD] hover:underline"
-                >
-                  <div className="flex flex-col justify-center sm:items-end items-center gap-1">
-                    {thread.last_post_date && (
-                      <p className="text-sm mt-1 text-white">
-                        תגובה אחרונה ב {formatDate(thread.last_post_date)}
-                      </p>
-                    )}
-                    {thread.last_post_author && (
-                      <>
-                        <p className="text-sm">{thread.last_post_author}</p>
-                      </>
-                    )}
-                  </div>
-                </a>
+                <div className="flex flex-col justify-center sm:items-end items-center gap-1 sm:gap-3">
+                  {thread.last_post_date && (
+                    <a
+                      title="Go to Thread"
+                      href={`/forum/${thread.forum_id}/${thread.id}`}
+                      className="text-sm mt-1 text-white"
+                    >
+                      תגובה אחרונה ב {formatDate(thread.last_post_date)}
+                    </a>
+                  )}
+                  {thread.last_post_author && (
+                    <>
+                      <a
+                        title="Go to Profie"
+                        href={`/users/${thread.last_post_author_id}/threads`}
+                        className="text-sm text-custom-b"
+                      >
+                        {thread.last_post_author}
+                      </a>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </li>

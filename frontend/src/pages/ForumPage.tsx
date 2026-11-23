@@ -1,6 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
-import ThreadList from "../components/ThreadList";
+import ThreadsList from "../components/ThreadsList";
 import { getThreads } from "../fetchMethods/getThreads";
 import type { ThreadType } from "../types";
 import { useQuery } from "@tanstack/react-query";
@@ -48,7 +48,7 @@ export default function ForumPage() {
           פתח נושא חדש
         </Link>
       </div>
-      <ThreadList
+      <ThreadsList
         total={total}
         forum={f ?? "1"}
         threads={threads}

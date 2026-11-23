@@ -8,3 +8,10 @@
 body {
   background-color: black;
 }
+
+@theme {
+  --color-primary: #1e3a8a;
+  --color-secondary: #0284c7;
+  --color-background: #0f172a;
+  --color-custom-b: #0bd7fd;
+}

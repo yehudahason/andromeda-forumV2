@@ -239,8 +239,10 @@ func (h *Handler) GetThreads(w http.ResponseWriter, r *http.Request) {
 		t.title,
 		COALESCE(u.name, 'Deleted user') AS author,
 		t.messages_count,
+		COALESCE(u.id::text , '') AS author_id,
 		t.last_post_title,
 		COALESCE(lp.name, 'Deleted user') AS last_post_author,
+		COALESCE(lp.id::text, '') AS last_post_author_id,
 		t.last_post_date,
 		t.created_at,
 		t.views,
@@ -279,6 +281,7 @@ func (h *Handler) GetThreads(w http.ResponseWriter, r *http.Request) {
 		user.ID,
 	)
 	if err != nil {
+		fmt.Println(err)
 		http.Error(w, "Failed to get threads", http.StatusInternalServerError)
 		return
 	}
@@ -293,8 +296,10 @@ func (h *Handler) GetThreads(w http.ResponseWriter, r *http.Request) {
 			&thread.Title,
 			&thread.Author,
 			&thread.MessagesCount,
+			&thread.AuthorID,
 			&thread.LastPostTitle,
 			&thread.LastPostAuthor,
+			&thread.LastPostAuthorID,
 			&thread.LastPostDate,
 			&thread.CreatedAt,
 			&thread.Views,

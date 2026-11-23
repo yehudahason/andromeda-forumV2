@@ -8,7 +8,7 @@ import NewThread from "./pages/NewThread";
 import NewReply from "./pages/NewReply";
 // import AuthGuard from "./components/Guard";
 import NewPrivateMessage from "./pages/NewPrivateMessage";
-import UploadPage from "./pages/UploadPage";
+import UploadImage from "./pages/UploadImage";
 import EditThread from "./pages/EditThread";
 import EditReply from "./pages/EditReply";
 import NewPosts from "./pages/NewPosts";
@@ -129,7 +129,7 @@ export default function App() {
         }
       />
       <Route path="/about" element={<About />} />
-      <Route path="/upload" element={<UploadPage />} />
+      <Route path="/upload" element={<UploadImage />} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

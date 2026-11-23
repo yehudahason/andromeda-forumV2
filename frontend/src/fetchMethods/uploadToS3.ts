@@ -3,7 +3,7 @@ import getToken from "../lib/getToken";
 type UploadResponse = {
   url: string;
 };
-export async function uploadToCloudFlare(formData: FormData) {
+export async function uploadToS3(formData: FormData) {
   const token = await getToken();
   const response = await fetch("https://api.pitron-halomot.org/api/upload", {
     method: "POST",

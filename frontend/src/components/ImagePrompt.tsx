@@ -15,7 +15,7 @@ export default function ImagePrompt({
 
   if (!open) return null;
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SubmitEvent) {
     e.preventDefault();
 
     const trimmed = url.trim();

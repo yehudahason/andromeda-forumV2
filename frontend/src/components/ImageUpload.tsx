@@ -1,6 +1,6 @@
 import type { ChangeEvent } from "react";
 import { useState, useEffect } from "react";
-import { uploadToCloudFlare } from "../fetchMethods/uploadToCloudflare";
+import { uploadToS3 } from "../fetchMethods/uploadToS3";
 
 type ImageUploadProps = {
   onUploaded?: (url: string) => void;
@@ -77,7 +77,7 @@ export default function ImageUpload({ onUploaded }: ImageUploadProps) {
 
       formData.append("image", file);
 
-      const data = await uploadToCloudFlare(formData);
+      const data = await uploadToS3(formData);
 
       setUploadedUrl(data.url);
 

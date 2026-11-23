@@ -7,7 +7,7 @@ import Pagination from "../components/Paginatiom";
 import { formatDate } from "../utils/formatDate";
 import { getUserByID } from "../fetchMethods/getUserByID";
 import type { User } from "../types";
-
+import ProfileHeader from "../components/ProfileHeader";
 export default function UserThreads() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [user, setUser] = useState<User | undefined>(undefined);
@@ -93,15 +93,7 @@ export default function UserThreads() {
         )}
         {/* Header */}
 
-        <div className="">
-          <h1 className="text-2xl py-4 text-white font-bold">{user?.name}</h1>
-          <a className="text-sky-500 m-2 " href={`/users/${userId}/threads`}>
-            כל השירשורים
-          </a>
-          <a className="text-white m-2" href={`/users/${userId}/replies`}>
-            כל ההודעות
-          </a>
-        </div>
+        <ProfileHeader user={user} userId={userId} isThreads={true} />
         <div className="flex w-full  flex-1 bg-neutral-600 p-2 sm:p-6 rounded-xl">
           <ul className="flex  w-full flex-col gap-3 ">
             {threads.map((item, index) => {
@@ -112,11 +104,13 @@ export default function UserThreads() {
                 border-b border-b-blue-800 pb-2 
                 text-lg"
                 >
-                  <span className="flex break-all flex-col sm:flex-row  items-center sm:gap-8 gap-2">
+                  <span className="flex break-all flex-col sm:flex-row  items-center sm:gap-4 gap-2">
                     <span className="py-0.5 px-2 rounded bg-sky-900 text-white">
                       {`${index + 1 + (page - 1) * 14}`}
                     </span>
-                    <span>{formatDate(item.created_at)}</span>
+                    <span className="whitespace-nowrap">
+                      {formatDate(item.created_at)}
+                    </span>
                     <a
                       title="Go to thread"
                       href={`/forum/${item.forum_id}/${item.id}`}

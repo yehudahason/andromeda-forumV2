@@ -9,6 +9,7 @@ import { getUserByID } from "../fetchMethods/getUserByID";
 import { formatDate } from "../utils/formatDate";
 import { truncateHtml } from "../utils/truncateHtml";
 import HtmlContent from "../components/HtmlContent";
+import ProfileHeader from "../components/ProfileHeader";
 export default function UserReplies() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { userId } = useParams<{ userId: string }>();
@@ -95,7 +96,7 @@ export default function UserReplies() {
         )}
         {/* Header */}
 
-        <div>
+        {/* <div>
           <h1
             className="
           text-2xl py-4 text-white font-bold"
@@ -108,7 +109,8 @@ export default function UserReplies() {
           <a className="text-sky-500 m-2" href={`/users/${userId}/replies`}>
             כל ההודעות
           </a>
-        </div>
+        </div> */}
+        <ProfileHeader user={user} userId={userId} isThreads={false} />
         <div className="flex w-full  flex-1 bg-neutral-600  p-1 sm:p-6 rounded-xl">
           <ul className="flex flex-col w-full gap-3">
             {replies.map((item, index) => {
@@ -118,9 +120,13 @@ export default function UserReplies() {
                   className="text-white w-full border-b
                    border-b-sky-900 text-lg sm:p-3 p-1"
                 >
-                  <span className="flex min-w-0 break-all w-full flex-col sm:flex-row   items-center sm:gap-8 gap-2">
-                    <span>#{index + 1 + (page - 1) * 14} </span>
-                    <span>{formatDate(item.created_at)}</span>
+                  <span className="flex min-w-0 break-all w-full flex-col sm:flex-row   items-center sm:gap-4 gap-2">
+                    <span className="py-0.5 px-2 rounded bg-sky-900 text-white">
+                      {`${index + 1 + (page - 1) * 14}`}
+                    </span>
+                    <span className="whitespace-nowrap">
+                      {formatDate(item.created_at)}
+                    </span>
                     <a
                       title="Go to reply"
                       href={`/forum/${item.forum_id}/${item.thread_id}/?tpage=${item.thread_page}#${item.id}`}

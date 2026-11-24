@@ -1,22 +1,31 @@
 import type { User } from "../types";
 import UploadImage from "../pages/UploadImage";
 import { useRef, useEffect, useState } from "react";
-
+import { useUserStore } from "../stores/userStore";
+import { getUserByID } from "../fetchMethods/getUserByID";
 type ProfileHeader = {
-  user: User | undefined;
   userId: string | undefined;
   isThreads: boolean;
 };
 
-export default function ProfileHeader({
-  user,
-  userId,
-  isThreads,
-}: ProfileHeader) {
+export default function ProfileHeader({ userId, isThreads }: ProfileHeader) {
+  const [userProfile, setUserProfile] = useState<User | undefined>(undefined);
   const [isOpen, setIsOpen] = useState(false);
   const divRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const { user } = useUserStore();
 
+  useEffect(() => {
+    async function init() {
+      if (userId) {
+        const userRes = await getUserByID(userId);
+        setUserProfile(userRes);
+        console.log("user page:", userRes);
+      }
+    }
+
+    init();
+  }, [userId]);
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
@@ -39,7 +48,9 @@ export default function ProfileHeader({
 
   return (
     <div className="">
-      <h1 className="text-2xl py-4 text-white font-bold">{user?.name}</h1>
+      <h1 className="text-2xl py-4 text-white font-bold">
+        {userProfile?.name}
+      </h1>
       <a
         className={`${isThreads ? "text-sky-500" : "text-white"} m-2 `}
         href={`/users/${userId}/threads`}
@@ -59,6 +70,12 @@ export default function ProfileHeader({
       >
         Upload Profile Image
       </button>
+
+      {user?.id !== userId && (
+        <a className="text-amber-300 mx-2" href={`/privatethread/${userId}`}>
+          הודעה פרטית
+        </a>
+      )}
 
       {isOpen && (
         <div

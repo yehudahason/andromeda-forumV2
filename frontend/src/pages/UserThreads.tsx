@@ -1,16 +1,15 @@
 import { useSearchParams, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getUserThreads } from "../fetchMethods/getUserThreads";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import Pagination from "../components/Paginatiom";
 // import { GetAvatar } from "../utils/GetAvatar";
 import { formatDate } from "../utils/formatDate";
-import { getUserByID } from "../fetchMethods/getUserByID";
-import type { User } from "../types";
+
 import ProfileHeader from "../components/ProfileHeader";
 export default function UserThreads() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [user, setUser] = useState<User | undefined>(undefined);
+
   const { userId } = useParams<{ userId: string }>();
   // Read page from URL.
   const rawPage = Number(searchParams.get("page") ?? "1");
@@ -23,17 +22,6 @@ export default function UserThreads() {
     enabled: !!userId,
   });
 
-  useEffect(() => {
-    async function init() {
-      if (userId) {
-        const userRes = await getUserByID(userId);
-        setUser(userRes);
-        console.log("user page:", userRes);
-      }
-    }
-
-    init();
-  }, [userId]);
   const threads = useMemo(() => {
     return data?.threads ?? [];
   }, [data]);
@@ -93,7 +81,7 @@ export default function UserThreads() {
         )}
         {/* Header */}
 
-        <ProfileHeader user={user} userId={userId} isThreads={true} />
+        <ProfileHeader userId={userId} isThreads={true} />
         <div className="flex w-full  flex-1 bg-neutral-600 p-2 sm:p-6 rounded-xl">
           <ul className="flex  w-full flex-col gap-3 ">
             {threads.map((item, index) => {

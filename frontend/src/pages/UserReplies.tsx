@@ -1,11 +1,10 @@
 import { useSearchParams, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getUserReplies } from "../fetchMethods/getUseReplies";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import Pagination from "../components/Paginatiom";
 // import { GetAvatar } from "../utils/GetAvatar";
-import { type User } from "../types";
-import { getUserByID } from "../fetchMethods/getUserByID";
+
 import { formatDate } from "../utils/formatDate";
 import { truncateHtml } from "../utils/truncateHtml";
 import HtmlContent from "../components/HtmlContent";
@@ -13,7 +12,7 @@ import ProfileHeader from "../components/ProfileHeader";
 export default function UserReplies() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { userId } = useParams<{ userId: string }>();
-  const [user, setUser] = useState<User | undefined>(undefined);
+
   // Read page from URL.
   const rawPage = Number(searchParams.get("page") ?? "1");
 
@@ -39,17 +38,6 @@ export default function UserReplies() {
     setSearchParams({ page: String(newPage) });
   }
 
-  useEffect(() => {
-    async function init() {
-      if (userId) {
-        const userRes = await getUserByID(userId);
-        setUser(userRes);
-        console.log("user page:", userRes);
-      }
-    }
-
-    init();
-  }, [userId]);
   useEffect(() => {
     console.log("user replies:", data);
   }, [data]);
@@ -110,7 +98,7 @@ export default function UserReplies() {
             כל ההודעות
           </a>
         </div> */}
-        <ProfileHeader user={user} userId={userId} isThreads={false} />
+        <ProfileHeader userId={userId} isThreads={false} />
         <div className="flex w-full  flex-1 bg-neutral-600  p-1 sm:p-6 rounded-xl">
           <ul className="flex flex-col w-full gap-3">
             {replies.map((item, index) => {

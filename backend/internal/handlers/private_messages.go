@@ -875,12 +875,12 @@ func (h *Handler) DeleteAllPrivateThreads(w http.ResponseWriter, r *http.Request
 	}
 
 	result, err := h.DB.Exec(r.Context(), `
-		DELETE FROM public.private_threads AS t
-			WHERE EXISTS (
-    	SELECT 1
-    	FROM public.private_thread_participants AS p
-    	WHERE p.thread_id = t.id
-      		AND p.user_id = $1 	)
+		DELETE FROM public.private_threads
+		WHERE id IN (
+    		SELECT thread_id
+    		FROM public.private_thread_participants
+    		WHERE user_id = $1
+		);
 	`, userID)
 
 	if err != nil {

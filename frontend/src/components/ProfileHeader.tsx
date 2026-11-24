@@ -1,31 +1,29 @@
-import type { User } from "../types";
 import UploadImage from "../pages/UploadImage";
 import { useRef, useEffect, useState } from "react";
 import { useUserStore } from "../stores/userStore";
 import { getUserByID } from "../fetchMethods/getUserByID";
+import { useQuery } from "@tanstack/react-query";
 type ProfileHeader = {
   userId: string | undefined;
   isThreads: boolean;
 };
 
 export default function ProfileHeader({ userId, isThreads }: ProfileHeader) {
-  const [userProfile, setUserProfile] = useState<User | undefined>(undefined);
   const [isOpen, setIsOpen] = useState(false);
   const divRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const { user } = useUserStore();
 
-  useEffect(() => {
-    async function init() {
-      if (userId) {
-        const userRes = await getUserByID(userId);
-        setUserProfile(userRes);
-        console.log("user page:", userRes);
-      }
-    }
+  const { data: userProfile } = useQuery({
+    queryKey: ["userProfile", userId],
 
-    init();
-  }, [userId]);
+    queryFn: () => getUserByID(userId!),
+
+    enabled: !!userId,
+
+    staleTime: 300_000,
+  });
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;

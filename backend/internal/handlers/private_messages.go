@@ -773,29 +773,160 @@ func (h *Handler) DeletePrivateMessage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	messageID, ok := h.privatePathID(w, r)
 	if !ok {
 		return
 	}
 
-	var deletedID int64
-	err := h.DB.QueryRow(r.Context(), `
-		DELETE FROM public.private_messages AS m
-		WHERE m.id = $1 AND m.sender_id = $2
+	ctx := r.Context()
+
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		h.privateInternalError(w, "begin transaction", err)
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	var threadID int64
+
+	// Check ownership, participation and lock the private thread.
+	err = tx.QueryRow(ctx, `
+		SELECT t.id
+		FROM public.private_threads AS t
+		JOIN public.private_messages AS m
+			ON m.thread_id = t.id
+		WHERE m.id = $1
+		  AND m.sender_id = $2
 		  AND EXISTS (
-		    SELECT 1 FROM public.private_thread_participants AS p
-		    WHERE p.thread_id = m.thread_id AND p.user_id = $2
+			SELECT 1
+			FROM public.private_thread_participants AS p
+			WHERE p.thread_id = t.id
+			  AND p.user_id = $2
 		  )
-		RETURNING m.id
-	`, messageID, userID).Scan(&deletedID)
+		FOR UPDATE OF t
+	`, messageID, userID).Scan(&threadID)
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, "Message not found", http.StatusNotFound)
 		return
 	}
+
+	if err != nil {
+		h.privateInternalError(w, "get private thread", err)
+		return
+	}
+
+	// Find the first message in the thread.
+	var firstMessageID int64
+
+	err = tx.QueryRow(ctx, `
+		SELECT id
+		FROM public.private_messages
+		WHERE thread_id = $1
+		ORDER BY created_at ASC, id ASC
+		LIMIT 1
+	`, threadID).Scan(&firstMessageID)
+
+	if err != nil {
+		h.privateInternalError(w, "get first private message", err)
+		return
+	}
+
+	threadDeleted := messageID == firstMessageID
+
+	if threadDeleted {
+		// Delete the entire private thread.
+		_, err = tx.Exec(ctx, `
+			DELETE FROM public.private_threads
+			WHERE id = $1
+		`, threadID)
+	} else {
+		// Delete only the selected message.
+		_, err = tx.Exec(ctx, `
+			DELETE FROM public.private_messages
+			WHERE id = $1
+			  AND thread_id = $2
+			  AND sender_id = $3
+		`, messageID, threadID, userID)
+	}
+
 	if err != nil {
 		h.privateInternalError(w, "delete private message", err)
 		return
 	}
+
+	if err := tx.Commit(ctx); err != nil {
+		h.privateInternalError(w, "commit transaction", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	json.NewEncoder(w).Encode(map[string]bool{
+		"thread_deleted": threadDeleted,
+	})
+}
+
+func (h *Handler) DeleteAllPrivateThreads(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.privateAuth(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := h.DB.Exec(r.Context(), `
+		DELETE FROM public.private_threads AS t
+			WHERE EXISTS (
+    	SELECT 1
+    	FROM public.private_thread_participants AS p
+    	WHERE p.thread_id = t.id
+      		AND p.user_id = $1 	)
+	`, userID)
+
+	if err != nil {
+		h.privateInternalError(w, "delete all private threads", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	json.NewEncoder(w).Encode(map[string]int64{
+		"deleted_count": result.RowsAffected(),
+	})
+}
+
+func (h *Handler) DeletePrivateThread(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.privateAuth(w, r)
+	if !ok {
+		return
+	}
+
+	threadID, ok := h.privatePathID(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := h.DB.Exec(r.Context(), `
+		DELETE FROM public.private_threads AS t
+		WHERE t.id = $1
+		  AND EXISTS (
+			SELECT 1
+			FROM public.private_thread_participants AS p
+			WHERE p.thread_id = t.id
+			  AND p.user_id = $2
+		  )
+	`, threadID, userID)
+
+	if err != nil {
+		h.privateInternalError(w, "delete private thread", err)
+		return
+	}
+
+	if result.RowsAffected() == 0 {
+		http.Error(w, "Private thread not found", http.StatusNotFound)
+		return
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -21,6 +21,11 @@ func NewMux(h *handlers.Handler) *http.ServeMux {
 	mux.HandleFunc("GET /api/users/{id}/replies", h.GetUserReplies)
 
 	//Authorized endpoints
+	mux.HandleFunc("DELETE /api/private/threads/{id}", h.DeletePrivateThread)
+	mux.HandleFunc(
+		"DELETE /api/private/threads",
+		h.DeleteAllPrivateThreads,
+	)
 	mux.HandleFunc("PATCH /api/me/image", h.UpdateProfileImage)
 	mux.HandleFunc("PUT /api/notifications/read-all", h.MarkAllNotificationsRead)
 	mux.HandleFunc("GET /api/notifications", h.GetNotifications)

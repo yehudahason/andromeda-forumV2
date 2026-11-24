@@ -113,7 +113,7 @@ export default function ImageUpload({ onUploaded }: ImageUploadProps) {
         <span className="block text-lg font-medium">בחר תמונה</span>
 
         <span className="mt-2 block text-sm text-neutral-400">
-          JPG, PNG, WebP עד 5MB
+          JPEG ,JPG, PNG, WebP עד 5MB
         </span>
 
         <input

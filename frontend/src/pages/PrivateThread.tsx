@@ -4,32 +4,73 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { getPrivateThread } from "../fetchMethods/privateMessages";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  deletePrivateMessage,
+  getPrivateThread,
+} from "../fetchMethods/privateMessages";
 import HtmlContent from "../components/HtmlContent";
 // import { useEffect } from "react";
 import Pagination from "../components/Paginatiom";
 import { GetAvatar } from "../utils/GetAvatar";
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { formatDateFull } from "../utils/formatDateFull";
 import { markPrivateThreadRead } from "../fetchMethods/privateMessages";
+import { useUserStore } from "../stores/userStore";
+
 export default function PrivateThread() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const user = useUserStore((state) => state.user);
   const { tid } = useParams<{ tid: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-
+  const baseUrl = import.meta.env.BASE_URL;
   const threadID = Number(tid);
-
+  const queryClient = useQueryClient();
   const rawPage = Number(searchParams.get("page") ?? 1);
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1;
 
   const validThreadID = Number.isSafeInteger(threadID) && threadID > 0;
 
-  const { data, isLoading, isError, error, isFetching } = useQuery({
+  const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ["privateMessages", threadID, page],
     queryFn: ({ signal }) => getPrivateThread(threadID, page, signal),
     enabled: validThreadID,
   });
+  async function deleteMsg(id: number) {
+    try {
+      const result = await deletePrivateMessage(id);
+
+      if (result.thread_deleted) {
+        await queryClient.invalidateQueries({
+          queryKey: ["privateThreads"],
+        });
+
+        navigate("/inbox", { replace: true });
+        return;
+      }
+
+      const response = await refetch();
+
+      if (!response.isSuccess || !response.data) return;
+
+      const newTotalPages = Math.max(
+        1,
+        Math.ceil(response.data.total / response.data.per_page),
+      );
+
+      if (page > newTotalPages) {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("page", String(newTotalPages));
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error("Failed to delete message:", error);
+    }
+  }
   //Scroll to id
   useEffect(() => {
     if (!data?.messages.length || !location.hash) return;
@@ -103,6 +144,9 @@ export default function PrivateThread() {
 
       {/* Messages */}
       <div className="flex flex-col gap-4 text-white">
+        <a className="text-white" href="/inbox">
+          Inbox
+        </a>
         {data?.messages.length === 0 ? (
           <p className="text-center text-gray-500">אין הודעות להצגה</p>
         ) : (
@@ -111,8 +155,30 @@ export default function PrivateThread() {
               <div
                 id={String(message.id)}
                 key={message.id}
-                className="flex  bg-neutral-600 gap-4 rounded-lg border border-gray-700 py-2 px-2"
+                className="flex relative  bg-neutral-600 gap-4 rounded-lg border border-gray-700 py-2 px-2"
               >
+                {message.sender_id === user?.id && (
+                  <button
+                    type="button"
+                    title={`${index === 0 ? "Delete Thread" : "Delete Message"}`}
+                    aria-label="Delete Message"
+                    onClick={() => {
+                      if (index === 0) {
+                        const ok = confirm("Delete  private thread?");
+                        if (ok) deleteMsg(message.id);
+                      } else {
+                        deleteMsg(message.id);
+                      }
+                    }}
+                    className="border-0 z-2 absolute left-2 top-2 bg-transparent"
+                  >
+                    <img
+                      className=" w-4 h-4"
+                      src={`${baseUrl}delete.png`}
+                      alt=""
+                    />
+                  </button>
+                )}
                 <div className="mb-2 flex flex-col items-center justify-center gap-3 py-4 pr-1">
                   <h4 className="whitespace-nowrap">{message.sender_name}</h4>
                   {GetAvatar({

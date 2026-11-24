@@ -1,11 +1,14 @@
 import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDateFull } from "../utils/formatDateFull";
 import { getPrivateThreads } from "../fetchMethods/privateMessages/getPrivateThreads";
 import { useEffect, useMemo } from "react";
 // import type { PrivateThread } from "../types/index";
 import Pagination from "../components/Paginatiom";
 import { GetAvatar } from "../utils/GetAvatar";
+import { deletePrivateThread } from "../fetchMethods/privateMessages/deletePrivateThread";
+
+import { deleteAllPrivateThreads } from "../fetchMethods/privateMessages/deleteAllPrivateThreads";
 function stripHTML(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
   return doc.body.textContent ?? "";
@@ -13,9 +16,10 @@ function stripHTML(html: string): string {
 
 export default function PrivateInbox() {
   const [searchParams, setSearchParams] = useSearchParams();
-
+  const queryClient = useQueryClient();
   // Read page from URL.
   const rawPage = Number(searchParams.get("page") ?? "1");
+  const baseUrl = import.meta.env.BASE_URL;
 
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1;
 
@@ -29,6 +33,50 @@ export default function PrivateInbox() {
     refetchOnWindowFocus: true,
   });
 
+  async function deleteAllThreads() {
+    if (!window.confirm("האם למחוק את כל השיחות לצמיתות?")) {
+      return;
+    }
+
+    try {
+      const result = await deleteAllPrivateThreads();
+
+      console.log("Deleted threads:", result.deleted_count);
+
+      setSearchParams({ page: "1" });
+
+      await updateAllMsg();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  const updateAllMsg = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["privateThreads"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["privateMessages"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["notifications"],
+      }),
+    ]);
+  };
+
+  async function deleteThread(id: number) {
+    if (!window.confirm("האם למחוק את השירשור?")) {
+      return;
+    }
+
+    try {
+      await deletePrivateThread(id);
+      await updateAllMsg();
+    } catch (error) {
+      console.error(error);
+    }
+  }
   // Your Go backend returns:
   // { threads, total, page, per_page }
 
@@ -98,7 +146,14 @@ export default function PrivateInbox() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl py-4 text-white font-bold">דואר נכנס</h1>
-
+            <button
+              type="button"
+              onClick={deleteAllThreads}
+              className="rounded bg-red-700 w-fit px-3 py-1 text-white
+             hover:bg-red-800 active:scale-95 transition"
+            >
+              מחק את כל השיחות
+            </button>
             <p className="mt-1 text-sm text-gray-300">
               {total} שיחות
               {unreadCount > 0 && (
@@ -112,7 +167,7 @@ export default function PrivateInbox() {
           <button
             type="button"
             onClick={() => void refetch()}
-            className="rounded-lg border px-4 py-2 hover:bg-gray-100"
+            className="rounded-lg border text-white px-4 py-2 hover:bg-gray-100"
           >
             רענן
           </button>
@@ -139,19 +194,35 @@ export default function PrivateInbox() {
               const title = thread.title?.trim() || `שיחה #${thread.id}`;
 
               return (
-                <Link
+                <section
                   key={thread.id}
-                  to={`/private/${thread.id}`}
                   className={`
                   flex items-center gap-6
                    p-4
                   transition-colors
                   last:border-b-0
+                  relative
                   text-white
                   rounded
                   bg-neutral-600
                 `}
                 >
+                  <button
+                    type="button"
+                    title="Delete Thread"
+                    aria-label="Delete Thread"
+                    onClick={async () => {
+                      await deleteThread(thread.id);
+                    }}
+                    className="border-0 z-2 absolute left-2 top-2 bg-transparent"
+                  >
+                    <img
+                      className=" w-4 h-4"
+                      src={`${baseUrl}delete.png`}
+                      alt=""
+                    />
+                  </button>
+
                   {/* Avatar */}
                   {GetAvatar({
                     name: thread.created_by_name ?? "",
@@ -167,7 +238,7 @@ export default function PrivateInbox() {
                         ${unread ? "font-bold" : "font-medium"}
                       `}
                       >
-                        {title}
+                        <Link to={`/private/${thread.id}`}> {title}</Link>
                       </h2>
 
                       {/* Unread badge */}
@@ -186,8 +257,10 @@ export default function PrivateInbox() {
 
                     {/* Latest message */}
 
-                    <p
+                    <Link
+                      to={`/private/${thread.id}`}
                       className={`
+      
                       mt-1 truncate text-sm
                        text-gray-100
                        mb-2
@@ -195,7 +268,7 @@ export default function PrivateInbox() {
                     >
                       {stripHTML(thread?.last_message_content ?? "") ??
                         "אין הודעות להצגה"}
-                    </p>
+                    </Link>
 
                     {/* Date */}
                     <div className="shrink-0 text-xs text-gray-300">
@@ -204,7 +277,7 @@ export default function PrivateInbox() {
                       )}
                     </div>
                   </div>
-                </Link>
+                </section>
               );
             })}
           </div>

@@ -63,13 +63,15 @@ export default function ProfileHeader({ userId, isThreads }: ProfileHeader) {
       >
         כל ההודעות
       </a>
-      <button
-        ref={btnRef}
-        className="text-amber-200"
-        onClick={() => setIsOpen((prev) => !prev)}
-      >
-        Upload Profile Image
-      </button>
+      {user?.id === userId && (
+        <button
+          ref={btnRef}
+          className="text-amber-200"
+          onClick={() => setIsOpen((prev) => !prev)}
+        >
+          Upload Profile Image
+        </button>
+      )}
 
       {user?.id !== userId && (
         <a className="text-amber-300 mx-2" href={`/privatethread/${userId}`}>

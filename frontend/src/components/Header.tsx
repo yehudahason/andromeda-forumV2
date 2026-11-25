@@ -418,8 +418,8 @@ export default function Header() {
                     className={`${isMenu ? "visible opacity-100" : "opacity-0 invisible"}
        absolute left-1 top-[140%] z-50
       w-fit rounded-md bg-neutral-600
-       px-6 py-4 text-right  shadow-lg
-      transition  flex flex-col gap-2
+       px-3 py-4 text-right  shadow-lg
+      transition  flex flex-col items-center justify-center gap-3 whitespace-nowrap
       
   `}
                   >
@@ -434,22 +434,29 @@ export default function Header() {
       "
                         />
                         <li>
-                          <h3 className="text-center border-b border-b-blue-300">
-                            Hello {user?.role}:
+                          <h3
+                            dir="ltr"
+                            className="text-center border-b border-b-blue-500 py-1"
+                          >
+                            Hello {user?.role} :
                           </h3>
                         </li>
                         <li>
-                          <p className="border-b text-center border-b-blue-300">
-                            {user?.name}
-                          </p>
-                        </li>
-                        <li>
-                          <button onClick={getUser}>GET session</button>
+                          <p className=" text-center ">{user?.name}</p>
                         </li>
                         <li>
                           <button
+                            type="button"
+                            className="cursor-pointer px-2 py-1 rounded bg-green-700 hover:bg-green-600"
+                            onClick={getUser}
+                          >
+                            GET session
+                          </button>
+                        </li>
+                        <li className="w-full">
+                          <button
                             onClick={handleSignOut}
-                            className="w-fit rounded-lg bg-gray-900 px-4 p-2 font-medium text-white transition hover:bg-gray-800"
+                            className="w-full cursor-pointer rounded-lg bg-gray-900 py-1 px-2 font-medium text-white transition hover:bg-gray-700"
                           >
                             Sign Out
                           </button>

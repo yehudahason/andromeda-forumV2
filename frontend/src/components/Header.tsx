@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { getMe } from "../lib/getMe.ts";
 import { GetAvatar } from "../utils/GetAvatar.tsx";
@@ -17,7 +17,34 @@ export default function Header() {
   const [notiMenu, setNotiMenu] = useState<boolean>(false);
   const [mailMenu, setMailMenu] = useState<boolean>(false);
   const [isMenu, setIsMenu] = useState<boolean>(false);
+  const tzurRef = useRef<HTMLLIElement>(null);
+  const notiRef = useRef<HTMLLIElement>(null);
+  const mailRef = useRef<HTMLLIElement>(null);
+  const menuRef = useRef<HTMLLIElement>(null);
 
+  useEffect(() => {
+    function handleClickOutside(event: PointerEvent) {
+      const target = event.target as Node;
+
+      if (
+        !tzurRef.current?.contains(target) &&
+        !notiRef.current?.contains(target) &&
+        !mailRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
+        setTzurMenu(false);
+        setNotiMenu(false);
+        setMailMenu(false);
+        setIsMenu(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
+    };
+  }, []);
   const baseUrl = import.meta.env.BASE_URL;
   const { user, setUser } = useUserStore((state) => state);
   const { setSession } = useSessionStore((state) => state);
@@ -59,7 +86,7 @@ export default function Header() {
       queryKey: ["notifications"],
     });
   }, [queryClient]);
-  console.log(data);
+  // console.log(data);
 
   useEffect(() => {
     refreshNotifications();
@@ -100,7 +127,10 @@ export default function Header() {
               />
 
               <ul className="md:flex  hidden items-center h-18 py-8  flex-row justify-end ">
-                <li className="group relative flex  border-l border-l-blue-200 px-3 text-white">
+                <li
+                  ref={tzurRef}
+                  className="group relative flex  border-l border-l-blue-200 px-3 text-white"
+                >
                   <button
                     onClick={() => {
                       setIsMenu(false);
@@ -153,7 +183,10 @@ export default function Header() {
                     </li>
                   </ul>
                 </li>
-                <li className="px-2 relative flex justify-center items-center">
+                <li
+                  ref={notiRef}
+                  className="px-2 relative flex justify-center items-center"
+                >
                   {tNotReadLength && (
                     <span className="bg-sky-500 px-1.5 py-0 text-white  absolute -top-4 right-1 rounded-full">
                       {tNotReadLength}
@@ -254,7 +287,10 @@ export default function Header() {
                   </ul>
                 </li>
 
-                <li className="px-2 border-l border-l-blue-200  relative flex justify-center items-center">
+                <li
+                  ref={mailRef}
+                  className="px-2 border-l border-l-blue-200  relative flex justify-center items-center"
+                >
                   {pmNotReadLength && (
                     <span className="bg-amber-200 px-1.5 py-0 text-amber-900  absolute -top-4 right-1 rounded-full">
                       {pmNotReadLength}
@@ -353,7 +389,10 @@ export default function Header() {
                   </ul>
                 </li>
 
-                <li className="px-2 flex items-center gap-2 text-white relative">
+                <li
+                  ref={menuRef}
+                  className="px-2 flex items-center gap-2 text-white relative"
+                >
                   {user &&
                     GetAvatar({
                       name: user.name,

@@ -40,7 +40,7 @@ export default function App() {
       }
 
       await setMe();
-      console.log(await getMe());
+      // console.log(await getMe());
     }
 
     loadSession();
@@ -67,7 +67,7 @@ export default function App() {
     async function loadUser() {
       try {
         const result = await getMe();
-        console.log("getMe:", result);
+        // console.log("getMe:", result);
 
         if (result) {
           setUser(result);

@@ -419,31 +419,37 @@ func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
 	// 2. Get private threads with creator name, unread count, and latest message.
 	rows, err := h.DB.Query(r.Context(), `
 SELECT
+    -- Basic private thread information.
     t.id,
     t.title,
 
-    -- Thread creator UUID, name and image.
+    -- Original thread creator's UUID, name, and profile image.
     t.created_by::text,
     creator.name AS created_by_name,
     COALESCE(creator.image_url, '') AS created_by_image,
 
-    -- Other participant UUID, name and image.
+    -- Original recipient's UUID, name, and profile image.
+    -- The recipient is the participant who did not create the thread.
     recipient.user_id::text AS recipient_id,
     COALESCE(rp.name, 'Deleted user') AS recipient_name,
     COALESCE(rp.image_url, '') AS recipient_image,
 
+    -- Thread timestamps.
     t.last_message_at,
     t.created_at,
     t.updated_at,
 
-    -- Number of participants.
+    -- Count all participants in the thread.
     (
         SELECT COUNT(*)
         FROM public.private_thread_participants AS others
         WHERE others.thread_id = t.id
     ) AS participants_count,
 
-    -- Number of unread messages from other users.
+    -- Count unread messages for the authenticated user.
+    -- Exclude messages sent by the authenticated user.
+    -- If last_read_at is NULL, all messages from other senders are unread.
+    -- Otherwise, count only messages created after last_read_at.
     (
         SELECT COUNT(*)
         FROM public.private_messages AS m
@@ -455,52 +461,78 @@ SELECT
         )
     ) AS unread_count,
 
-    -- Latest message preview.
+    -- Content of the most recent message in the thread.
     latest.content AS last_message_content,
 
-    -- Latest message sender UUID and name.
+    -- UUID and name of the most recent message's sender.
+    -- The sender may be either the creator or the original recipient.
     latest.sender_id::text AS last_message_sender_id,
     latest.sender_name AS last_message_sender_name
 
+-- Start with thread participants to restrict access
+-- to conversations belonging to the authenticated user.
 FROM public.private_thread_participants AS p
 
+-- Retrieve the private thread associated with each participant.
 JOIN public.private_threads AS t
     ON t.id = p.thread_id
 
--- Get the other participant.
+-- Find the original recipient by excluding the thread creator.
+-- Each private thread is expected to contain exactly two participants.
+-- The original recipient remains the same regardless of who is logged in.
 JOIN public.private_thread_participants AS recipient
     ON recipient.thread_id = t.id
     AND recipient.user_id <> t.created_by
 
--- Get the other participant's profile.
+-- Retrieve the original recipient's profile information.
+-- LEFT JOIN preserves the result if the profile is missing.
 LEFT JOIN public.profiles AS rp
     ON rp.id = recipient.user_id
 
--- Get the thread creator's profile.
+-- Retrieve the original thread creator's profile information.
+-- LEFT JOIN preserves the result if the profile is missing.
 LEFT JOIN public.profiles AS creator
     ON creator.id = t.created_by
 
--- Get the latest message in each conversation.
+-- Retrieve the most recent message for each private thread.
+-- LATERAL allows the subquery to reference the current thread (t.id).
+-- LEFT JOIN preserves threads that contain no messages.
 LEFT JOIN LATERAL (
     SELECT
         m.content,
         m.sender_id,
         profile.name AS sender_name
+
     FROM public.private_messages AS m
+
+    -- Retrieve the message sender's profile name.
     LEFT JOIN public.profiles AS profile
         ON profile.id = m.sender_id
+
+    -- Restrict messages to the current private thread.
     WHERE m.thread_id = t.id
+
+    -- Select the newest message.
+    -- Use the message ID as a tie-breaker when timestamps are equal.
     ORDER BY m.created_at DESC, m.id DESC
     LIMIT 1
 ) AS latest ON TRUE
 
+-- Return only threads in which the authenticated user participates.
+-- $1: Authenticated user's UUID.
 WHERE p.user_id = $1
 
+-- Sort conversations by most recent activity.
+-- Threads without messages appear last.
+-- Creation timestamp and thread ID provide deterministic ordering.
 ORDER BY
     t.last_message_at DESC NULLS LAST,
     t.created_at DESC,
     t.id DESC
 
+-- Apply pagination.
+-- $2: Maximum number of threads per page.
+-- $3: Number of threads to skip.
 LIMIT $2 OFFSET $3;
 	`,
 		userID,

@@ -27,6 +27,9 @@ type privateThread struct {
 	LastMessageAt  *time.Time `json:"last_message_at"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+	RecipientID    string     `json:"recipient_id"`
+	RecipientName  string     `json:"recipient_name"`
+	RecipientImage string     `json:"recipient_image"`
 }
 
 type privateThreadSummary struct {
@@ -415,76 +418,90 @@ func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Get private threads with creator name, unread count, and latest message.
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT
-    	t.id,
-    	t.title,
+SELECT
+    t.id,
+    t.title,
 
-    	-- Thread creator UUID, name and image.
-    	t.created_by::text,
-    	creator.name AS created_by_name,
-    	COALESCE(creator.image_url, '') AS created_by_image,
+    -- Thread creator UUID, name and image.
+    t.created_by::text,
+    creator.name AS created_by_name,
+    COALESCE(creator.image_url, '') AS created_by_image,
 
-    	t.last_message_at,
-    	t.created_at,
-    	t.updated_at,
+    -- Other participant UUID, name and image.
+    recipient.user_id::text AS recipient_id,
+    COALESCE(rp.name, 'Deleted user') AS recipient_name,
+    COALESCE(rp.image_url, '') AS recipient_image,
 
-   		 -- Number of participants.
-			(
-				SELECT COUNT(*)
-				FROM public.private_thread_participants AS others
-				WHERE others.thread_id = t.id
-			) AS participants_count,
+    t.last_message_at,
+    t.created_at,
+    t.updated_at,
 
-			-- Number of unread messages from other users.
-			(
-				SELECT COUNT(*)
-				FROM public.private_messages AS m
-				WHERE m.thread_id = t.id
-				AND m.sender_id IS DISTINCT FROM $1
-				AND (
-					p.last_read_at IS NULL
-					OR m.created_at > p.last_read_at
-				)
-			) AS unread_count,
+    -- Number of participants.
+    (
+        SELECT COUNT(*)
+        FROM public.private_thread_participants AS others
+        WHERE others.thread_id = t.id
+    ) AS participants_count,
 
-			-- Latest message preview.
-			latest.content AS last_message_content,
+    -- Number of unread messages from other users.
+    (
+        SELECT COUNT(*)
+        FROM public.private_messages AS m
+        WHERE m.thread_id = t.id
+        AND m.sender_id IS DISTINCT FROM $1
+        AND (
+            p.last_read_at IS NULL
+            OR m.created_at > p.last_read_at
+        )
+    ) AS unread_count,
 
-			-- Latest message sender UUID and name.
-			latest.sender_id::text AS last_message_sender_id,
-			latest.sender_name AS last_message_sender_name
+    -- Latest message preview.
+    latest.content AS last_message_content,
 
-		FROM public.private_thread_participants AS p
+    -- Latest message sender UUID and name.
+    latest.sender_id::text AS last_message_sender_id,
+    latest.sender_name AS last_message_sender_name
 
-		JOIN public.private_threads AS t
-			ON t.id = p.thread_id
+FROM public.private_thread_participants AS p
 
-		-- Get the thread creator's profile.
-		LEFT JOIN public.profiles AS creator
-			ON creator.id = t.created_by
+JOIN public.private_threads AS t
+    ON t.id = p.thread_id
 
-		-- Get the latest message in each conversation.
-		LEFT JOIN LATERAL (
-			SELECT
-				m.content,
-				m.sender_id,
-				profile.name AS sender_name
-			FROM public.private_messages AS m
-			LEFT JOIN public.profiles AS profile
-				ON profile.id = m.sender_id
-			WHERE m.thread_id = t.id
-			ORDER BY m.created_at DESC, m.id DESC
-			LIMIT 1
-		) AS latest ON TRUE
+-- Get the other participant.
+JOIN public.private_thread_participants AS recipient
+    ON recipient.thread_id = t.id
+    AND recipient.user_id <> t.created_by
 
-		WHERE p.user_id = $1
+-- Get the other participant's profile.
+LEFT JOIN public.profiles AS rp
+    ON rp.id = recipient.user_id
 
-		ORDER BY
-			t.last_message_at DESC NULLS LAST,
-			t.created_at DESC,
-			t.id DESC
+-- Get the thread creator's profile.
+LEFT JOIN public.profiles AS creator
+    ON creator.id = t.created_by
 
-		LIMIT $2 OFFSET $3;
+-- Get the latest message in each conversation.
+LEFT JOIN LATERAL (
+    SELECT
+        m.content,
+        m.sender_id,
+        profile.name AS sender_name
+    FROM public.private_messages AS m
+    LEFT JOIN public.profiles AS profile
+        ON profile.id = m.sender_id
+    WHERE m.thread_id = t.id
+    ORDER BY m.created_at DESC, m.id DESC
+    LIMIT 1
+) AS latest ON TRUE
+
+WHERE p.user_id = $1
+
+ORDER BY
+    t.last_message_at DESC NULLS LAST,
+    t.created_at DESC,
+    t.id DESC
+
+LIMIT $2 OFFSET $3;
 	`,
 		userID,
 		privatePageSize,
@@ -509,6 +526,9 @@ func (h *Handler) ListPrivateThreads(w http.ResponseWriter, r *http.Request) {
 			&t.CreatedBy,
 			&t.CreatedByName,
 			&t.CreatedByImage,
+			&t.RecipientID,
+			&t.RecipientName,
+			&t.RecipientImage,
 			&t.LastMessageAt,
 			&t.CreatedAt,
 			&t.UpdatedAt,

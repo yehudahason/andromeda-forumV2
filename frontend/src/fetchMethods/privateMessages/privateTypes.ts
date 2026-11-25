@@ -20,6 +20,9 @@ export interface PrivateThreadSummary {
   unread_count: number;
   last_message_content?: string | null;
   last_message_sender_id?: string | null;
+  recipient_id: string;
+  recipient_name: string;
+  recipient_image: string;
 }
 
 export interface PrivateThreadListResponse {

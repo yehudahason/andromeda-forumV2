@@ -13,11 +13,13 @@ import HtmlContent from "../components/HtmlContent";
 // import { useEffect } from "react";
 import Pagination from "../components/Paginatiom";
 import { GetAvatar } from "../utils/GetAvatar";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDateFull } from "../utils/formatDateFull";
 import { markPrivateThreadRead } from "../fetchMethods/privateMessages";
 import { useUserStore } from "../stores/userStore";
+import type { EditPrivateMessageProps } from "./EditPrivateMessage";
+import EditPrivateMessage from "./EditPrivateMessage";
 
 export default function PrivateThread() {
   const location = useLocation();
@@ -33,6 +35,9 @@ export default function PrivateThread() {
 
   const validThreadID = Number.isSafeInteger(threadID) && threadID > 0;
 
+  const [showEdit, setShowEdit] = useState<EditPrivateMessageProps | null>(
+    null,
+  );
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ["privateMessages", threadID, page],
     queryFn: ({ signal }) => getPrivateThread(threadID, page, signal),
@@ -124,6 +129,9 @@ export default function PrivateThread() {
     );
   }
 
+  if (showEdit) {
+    return <EditPrivateMessage {...showEdit} setShowEdit={setShowEdit} />;
+  }
   return (
     <div
       dir="rtl"
@@ -158,26 +166,48 @@ export default function PrivateThread() {
                 className="flex relative  bg-neutral-600 gap-4 rounded-lg border border-gray-700 py-2 px-2"
               >
                 {message.sender_id === user?.id && (
-                  <button
-                    type="button"
-                    title={`${index === 0 ? "Delete Thread" : "Delete Message"}`}
-                    aria-label="Delete Message"
-                    onClick={() => {
-                      if (index === 0) {
-                        const ok = confirm("Delete  private thread?");
-                        if (ok) deleteMsg(message.id);
-                      } else {
-                        deleteMsg(message.id);
+                  <>
+                    {/* Delete Botton */}
+                    <button
+                      type="button"
+                      title={`${index === 0 ? "Delete Thread" : "Delete Message"}`}
+                      aria-label="Delete Message"
+                      onClick={() => {
+                        if (index === 0) {
+                          const ok = confirm("Delete  private thread?");
+                          if (ok) deleteMsg(message.id);
+                        } else {
+                          deleteMsg(message.id);
+                        }
+                      }}
+                      className="border-0 z-2 absolute left-2 top-2 bg-transparent"
+                    >
+                      <img
+                        className=" w-4 h-4"
+                        src={`${baseUrl}delete.png`}
+                        alt=""
+                      />
+                    </button>
+                    {/* Edit link */}
+                    <button
+                      onClick={() =>
+                        setShowEdit({
+                          t: threadID,
+                          id: message.id,
+                          content: message.content,
+                          page: page,
+                        })
                       }
-                    }}
-                    className="border-0 z-2 absolute left-2 top-2 bg-transparent"
-                  >
-                    <img
-                      className=" w-4 h-4"
-                      src={`${baseUrl}delete.png`}
-                      alt=""
-                    />
-                  </button>
+                      title="Edit Message"
+                      className="cursor-pointer  border-0 z-2 absolute left-3 bottom-3 bg-transparent"
+                    >
+                      <img
+                        className=" w-4 h-4"
+                        src={`${baseUrl}edit.png`}
+                        alt=""
+                      />
+                    </button>
+                  </>
                 )}
                 <div className="mb-2 flex flex-col items-center justify-center gap-3 py-4 pr-1">
                   <h4 className="whitespace-nowrap">{message.sender_name}</h4>

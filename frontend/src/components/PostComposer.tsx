@@ -19,7 +19,7 @@ export type Post = {
 };
 type PostComposerProps = {
   post?: Post;
-  mode: "thread" | "reply";
+  mode: "thread" | "reply" | "private";
   onSubmit: (data: Post) => void;
   submitText?: string;
   // initialContent?: string;

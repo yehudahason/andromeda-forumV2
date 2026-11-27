@@ -382,7 +382,7 @@ BEFORE INSERT ON public.private_messages
 FOR EACH ROW
 EXECUTE FUNCTION public.private_messages_validate_insert();
 
--- FUNCTION: After a private message insert, create one notification for each participant other than the sender.
+-- FUNCTION: After a private message insert, create one notification for each following participant other than the sender.
 CREATE OR REPLACE FUNCTION public.notify_private_message_participants()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -399,7 +399,7 @@ BEGIN
     WHERE thread_id = NEW.thread_id
         AND (created_at, id) <= (NEW.created_at, NEW.id);
 
-    -- Notify all participants except the sender
+    -- Notify all following participants except the sender
     INSERT INTO public.notifications (
         user_id,
         type,
@@ -415,14 +415,15 @@ BEGIN
         v_thread_page
     FROM public.private_thread_participants AS p
     WHERE p.thread_id = NEW.thread_id
-      AND p.user_id IS DISTINCT FROM NEW.sender_id;
+      AND p.user_id IS DISTINCT FROM NEW.sender_id
+      AND p.is_following = TRUE;
 
     RETURN NULL;
 END;
 $$;
 
 
--- TRIGGER (AFTER INSERT on public.private_messages): Notify all other participants; the sender is excluded.
+-- TRIGGER (AFTER INSERT on public.private_messages): Notify all other following participants; the sender is excluded.
 CREATE TRIGGER private_messages_notify_participants
 AFTER INSERT ON public.private_messages
 FOR EACH ROW
@@ -452,6 +453,8 @@ BEFORE UPDATE ON public.private_messages
 FOR EACH ROW
 EXECUTE FUNCTION public.private_set_updated_at();
 
+ALTER TABLE public.private_thread_participants
+ADD COLUMN is_following BOOLEAN NOT NULL DEFAULT TRUE;
 
 -- FUNCTION: Move private_threads.last_message_at forward to the inserted message timestamp.
 CREATE OR REPLACE FUNCTION public.private_messages_after_insert()
@@ -1471,7 +1474,7 @@ COMMENT ON TABLE public.thread_follows IS 'Explicit forum-thread follow subscrip
 COMMENT ON FUNCTION public.forum_create_user_stats() IS 'Initialize per-account forum counters after auth.users insertion; ignore existing entries.';
 COMMENT ON FUNCTION public.create_user_profile() IS 'Create/upsert a public profile from auth.users metadata, retaining identity across later auth deletion.';
 COMMENT ON FUNCTION public.private_messages_validate_insert() IS 'Require a non-NULL private-message sender who already belongs to the conversation.';
-COMMENT ON FUNCTION public.notify_private_message_participants() IS 'After a private message insert, create one notification for each participant other than the sender.';
+COMMENT ON FUNCTION public.notify_private_message_participants() IS 'After a private message insert, create one notification for each following participant other than the sender.';
 COMMENT ON FUNCTION public.private_set_updated_at() IS 'Refresh updated_at on private threads and messages whenever they are updated.';
 COMMENT ON FUNCTION public.private_messages_after_insert() IS 'Move private_threads.last_message_at forward to the inserted message timestamp.';
 COMMENT ON FUNCTION public.private_messages_after_delete() IS 'Recalculate private_threads.last_message_at when a message is deleted, including deletion of the latest message.';
@@ -1497,7 +1500,7 @@ COMMENT ON FUNCTION forum_after_thread_delete() IS 'For affected surviving forum
 -- Supabase Auth owns auth.users; COMMENT ON TRIGGER requires relation ownership.
 -- COMMENT ON TRIGGER on_auth_user_created ON auth.users IS 'AFTER INSERT: Create the persistent public profile for the new auth user.';
 COMMENT ON TRIGGER private_messages_validate_insert ON public.private_messages IS 'BEFORE INSERT: Reject anonymous/new messages from nonparticipants.';
-COMMENT ON TRIGGER private_messages_notify_participants ON public.private_messages IS 'AFTER INSERT: Notify all other participants; the sender is excluded.';
+COMMENT ON TRIGGER private_messages_notify_participants ON public.private_messages IS 'AFTER INSERT: Notify all other following participants; the sender is excluded.';
 COMMENT ON TRIGGER private_threads_set_updated_at ON public.private_threads IS 'BEFORE UPDATE: Refresh private thread updated_at.';
 COMMENT ON TRIGGER private_messages_set_updated_at ON public.private_messages IS 'BEFORE UPDATE: Refresh private message updated_at.';
 COMMENT ON TRIGGER private_messages_after_insert ON public.private_messages IS 'AFTER INSERT: Track newest private message timestamp in its conversation.';

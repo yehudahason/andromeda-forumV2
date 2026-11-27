@@ -21,6 +21,16 @@ func NewMux(h *handlers.Handler) *http.ServeMux {
 	mux.HandleFunc("GET /api/users/{id}/replies", h.GetUserReplies)
 
 	//Authorized endpoints
+
+	mux.HandleFunc(
+		"POST /api/private/threads/{threadID}/follow",
+		h.FollowPrivateThreadHandler,
+	)
+
+	mux.HandleFunc(
+		"DELETE /api/private/threads/{threadID}/follow",
+		h.UnfollowPrivateThreadHandler,
+	)
 	mux.HandleFunc("DELETE /api/private/threads/{id}", h.DeletePrivateThread)
 	mux.HandleFunc(
 		"DELETE /api/private/threads",

@@ -186,3 +186,96 @@ func (h *Handler) IsThreadFollowed(
 
 	return following, err
 }
+func (h *Handler) FollowPrivateThread(
+	ctx context.Context,
+	userID uuid.UUID,
+	threadID int64,
+) error {
+	const query = `
+		UPDATE public.private_thread_participants
+		SET is_following = TRUE
+		WHERE thread_id = $1
+		AND user_id = $2
+	`
+
+	_, err := h.DB.Exec(ctx, query, threadID, userID)
+
+	return err
+}
+
+func (h *Handler) UnfollowPrivateThread(
+	ctx context.Context,
+	userID uuid.UUID,
+	threadID int64,
+) error {
+	const query = `
+		UPDATE public.private_thread_participants
+		SET is_following = FALSE
+		WHERE thread_id = $1
+		AND user_id = $2
+	`
+
+	_, err := h.DB.Exec(ctx, query, threadID, userID)
+
+	return err
+}
+
+func (h *Handler) FollowPrivateThreadHandler(w http.ResponseWriter, r *http.Request) {
+	threadID, err := strconv.ParseInt(r.PathValue("threadID"), 10, 64)
+	if err != nil || threadID <= 0 {
+		http.Error(w, "Invalid thread ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := h.Auth.GetUser(r)
+	if err != nil {
+		if errors.Is(err, auth.ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		h.Logger.Error("followPrivateThread authentication failed", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	err = h.FollowPrivateThread(r.Context(), userID.ID, threadID)
+	if err != nil {
+		h.Logger.Error("followPrivateThread database error", "error", err)
+		http.Error(w, "Failed to follow private thread", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) UnfollowPrivateThreadHandler(w http.ResponseWriter, r *http.Request) {
+	threadID, err := strconv.ParseInt(r.PathValue("threadID"), 10, 64)
+	if err != nil || threadID <= 0 {
+		http.Error(w, "Invalid thread ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := h.Auth.GetUser(r)
+	if err != nil {
+		if errors.Is(err, auth.ErrUnauthorized) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		h.Logger.Error("unfollowPrivateThread authentication failed", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	err = h.UnfollowPrivateThread(r.Context(), userID.ID, threadID)
+	if err != nil {
+		h.Logger.Error("unfollowPrivateThread database error", "error", err)
+		http.Error(w, "Failed to unfollow private thread", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

@@ -599,68 +599,84 @@ LIMIT $2 OFFSET $3;
 }
 
 // GET /api/private/threads/{id}/messages?page=1
-
 func (h *Handler) GetPrivateThread(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.privateAuth(w, r)
 	if !ok {
 		return
 	}
+
 	threadID, ok := h.privatePathID(w, r)
 	if !ok {
 		return
 	}
+
 	page, ok := h.privatePage(w, r)
 	if !ok {
 		return
 	}
+
 	if !h.privateRequireParticipant(w, r, threadID, userID) {
 		return
 	}
 
 	var total int64
+	var isFollowing bool
+
 	err := h.DB.QueryRow(r.Context(), `
-		SELECT COUNT(*) FROM public.private_messages AS m
-		WHERE m.thread_id = $1
-		  AND EXISTS (
-		    SELECT 1 FROM public.private_thread_participants
-		    WHERE thread_id = $1 AND user_id = $2
-		  )
-	`, threadID, userID).Scan(&total)
+		SELECT
+			(
+				SELECT COUNT(*)
+				FROM public.private_messages AS m
+				WHERE m.thread_id = p.thread_id
+			) AS total,
+			p.is_following
+
+		FROM public.private_thread_participants AS p
+
+		WHERE p.thread_id = $1
+			AND p.user_id = $2
+
+	`, threadID, userID).Scan(&total, &isFollowing)
+
 	if err != nil {
 		h.privateInternalError(w, "count private messages", err)
 		return
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-			SELECT
-				m.id,
-				m.thread_id,
-				t.title,
-				COALESCE(m.sender_id::text, '') AS sender_id,
-				COALESCE(profile.name, '') AS sender_name,
-				COALESCE(profile.image_url, '') AS sender_image,
-				m.content,
-				m.created_at,
-				m.updated_at
-			FROM public.private_messages AS m
+		SELECT
+			m.id,
+			m.thread_id,
+			t.title,
+			COALESCE(m.sender_id::text, '') AS sender_id,
+			COALESCE(profile.name, '') AS sender_name,
+			COALESCE(profile.image_url, '') AS sender_image,
+			m.content,
+			m.created_at,
+			m.updated_at
 
-			LEFT JOIN public.profiles AS profile
-				ON profile.auth_user_id = m.sender_id
+		FROM public.private_messages AS m
 
-			LEFT JOIN public.private_threads AS t
-				ON t.id = m.thread_id
+		LEFT JOIN public.profiles AS profile
+			ON profile.auth_user_id = m.sender_id
 
-			WHERE m.thread_id = $1
-				AND EXISTS (
-					SELECT 1
-					FROM public.private_thread_participants AS p
-					WHERE p.thread_id = m.thread_id
-					AND p.user_id = $2
-				)
+		LEFT JOIN public.private_threads AS t
+			ON t.id = m.thread_id
 
-			ORDER BY m.created_at ASC, m.id ASC
+		WHERE m.thread_id = $1
+			AND EXISTS (
+				SELECT 1
+				FROM public.private_thread_participants AS p
+				WHERE p.thread_id = m.thread_id
+				AND p.user_id = $2
+			)
 
-			LIMIT $3 OFFSET $4;`, threadID, userID, privatePageSize, (page-1)*privatePageSize)
+		ORDER BY m.created_at ASC, m.id ASC
+
+		LIMIT $3 OFFSET $4;
+
+	`, threadID, userID, privatePageSize, (page-1)*privatePageSize)
+
 	if err != nil {
 		h.privateInternalError(w, "query private messages", err)
 		return
@@ -668,28 +684,46 @@ func (h *Handler) GetPrivateThread(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	messages := make([]privateMessage, 0)
+
 	for rows.Next() {
 		var m privateMessage
+
 		if err := rows.Scan(
-			&m.ID, &m.ThreadID, &m.ThreadTitle, &m.SenderID, &m.SenderName,
+			&m.ID,
+			&m.ThreadID,
+			&m.ThreadTitle,
+			&m.SenderID,
+			&m.SenderName,
 			&m.SenderImage,
-			&m.Content, &m.CreatedAt, &m.UpdatedAt,
+			&m.Content,
+			&m.CreatedAt,
+			&m.UpdatedAt,
 		); err != nil {
 			h.privateInternalError(w, "scan private messages", err)
 			return
 		}
+
 		messages = append(messages, m)
 	}
+
 	if err := rows.Err(); err != nil {
 		h.privateInternalError(w, "iterate private messages", err)
 		return
 	}
+
 	h.privateWriteJSON(w, http.StatusOK, struct {
-		Messages []privateMessage `json:"messages"`
-		Total    int64            `json:"total"`
-		Page     int              `json:"page"`
-		PerPage  int              `json:"per_page"`
-	}{Messages: messages, Total: total, Page: page, PerPage: privatePageSize})
+		Messages    []privateMessage `json:"messages"`
+		Total       int64            `json:"total"`
+		Page        int              `json:"page"`
+		PerPage     int              `json:"per_page"`
+		IsFollowing bool             `json:"is_following"`
+	}{
+		Messages:    messages,
+		Total:       total,
+		Page:        page,
+		PerPage:     privatePageSize,
+		IsFollowing: isFollowing,
+	})
 }
 
 func (h *Handler) privateValidateContent(w http.ResponseWriter, content string) bool {

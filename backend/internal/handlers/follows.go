@@ -118,7 +118,7 @@ func (h *Handler) UnfollowThreadHandler(w http.ResponseWriter, r *http.Request) 
 
 // isFollow Thread endpoint
 
-func (h *Handler) GetThreadFollow(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetIsThreadFollow(w http.ResponseWriter, r *http.Request) {
 	threadID, err := strconv.ParseInt(r.PathValue("threadID"), 10, 64)
 	if err != nil || threadID <= 0 {
 		http.Error(w, "Invalid thread ID", http.StatusBadRequest)

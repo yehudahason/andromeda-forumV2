@@ -42,7 +42,7 @@ func NewMux(h *handlers.Handler) *http.ServeMux {
 	mux.HandleFunc("PUT /api/notifications/{id}/read", h.MarkNotificationRead)
 	mux.HandleFunc("POST /api/threads/{threadID}/follow", h.FollowThreadHandler)
 	mux.HandleFunc("DELETE /api/threads/{threadID}/follow", h.UnfollowThreadHandler)
-	mux.HandleFunc("GET /api/threads/{threadID}/follow", h.GetThreadFollow)
+	mux.HandleFunc("GET /api/threads/{threadID}/follow", h.GetIsThreadFollow)
 	mux.HandleFunc("DELETE /api/forums/{forumID}", h.DeleteForum)
 	mux.HandleFunc("POST /api/forums", h.CreateForum)
 	mux.HandleFunc("PUT /api/forums/{forumID}", h.UpdateForum)
